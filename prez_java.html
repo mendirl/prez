@@ -239,8 +239,64 @@ Intérêt: accéder rapidement aux ressources officielles, spécifications et é
 
 - OpenJDK Project Amber: https://openjdk.org/projects/amber/
 - OpenJDK Project Valhalla: https://openjdk.org/projects/valhalla/
+- OpenJDK Project Leyden: https://openjdk.org/projects/leyden/
 - Design notes (Amber): https://openjdk.org/projects/amber/design-notes
 - JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
+## Projet Leyden — aperçu
+
+Intérêt: réduire le temps de démarrage, l’empreinte mémoire et améliorer la prévisibilité via build-time/static images.
+
+Le Projet Leyden vise à apporter des mécanismes d’optimisation en amont (build‑time) et des images statiques pour Java, afin d’améliorer le démarrage, réduire le RSS, et stabiliser les performances dans les environnements cloud/serverless.
+
+---
+
+## Concepts clés (Leyden)
+
+Intérêt: poser les notions pour comprendre l’approche et ses compromis.
+
+- AOT/Build-time initialisation: déplacer du travail du runtime vers le build.
+- Images statiques natives: générer un binaire autonome (sans JIT) pour démarrage ultra‑rapide.
+- Fermeture du monde (closed-world assumptions): contraintes pour l’analyse statique (réflexion, proxies).
+- Profil « cloud-friendly »: empreinte mémoire réduite, démarrage prévisible, cold starts améliorés.
+
+---
+
+## JEPs (Leyden) — repères par version
+
+Intérêt: repérer les jalons dans les JDK récents; vérifiez l’index JEP pour l’état exact.
+
+- Java 21–23: travaux autour de l’AOT, CDS, et images statiques expérimentales.
+- JEP 447 (Preview) — Créer des images statiques de programmes Java (exemple de jalon lié; à vérifier selon l’index).
+- Suivre: https://openjdk.org/projects/leyden/ et https://openjdk.org/jeps/0 (mots‑clés: Leyden, static images, AOT, CDS).
+
+Note: la numérotation exacte et l’état des JEP Leyden évoluent; privilégier l’index JEP.
+
+---
+
+## Exemple (indicatif)
+
+Intérêt: illustrer la création d’une image statique (syntaxe et outils susceptibles d’évoluer).
+
+```bash
+# Exemple indicatif; reportez-vous à la JEP et à la doc d’outils pour la syntaxe exacte
+# Compilation
+javac -d out src/main/java/com/example/App.java
+# Génération d’une image statique (commande sujette à changement selon JEP/outils)
+javac -static-image -cp out com.example.App -o app
+```
+
+---
+
+## Où s’insère Leyden vs Amber/Valhalla ?
+
+Intérêt: positionner Leyden par rapport aux autres projets OpenJDK.
+
+- Amber: expressivité du langage et modélisation.
+- Valhalla: modèle de types et représentation mémoire pour perfs.
+- Leyden: packaging/optimisation build‑time et images statiques pour démarrage/empreinte.
 
 ---
 
@@ -248,7 +304,7 @@ Intérêt: accéder rapidement aux ressources officielles, spécifications et é
 
 Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
 
-Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, fiez‑vous aux builds EA et aux JEPs en cours d’élaboration.
+Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla et Leyden, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
 </textarea>
 
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
