@@ -457,11 +457,125 @@ Intérêt: accéder rapidement aux ressources officielles.
 
 ---
 
+## Projet Panama — aperçu
+
+Intérêt: faciliter l’interopérabilité native (appel de fonctions C, accès mémoire hors-heap) et accélérer certaines charges via Vector API.
+
+Le Projet Panama apporte la Foreign Function & Memory API (FFM) pour appeler des bibliothèques natives en Java, gérer de la mémoire off-heap en sécurité, et la Vector API pour exploiter les instructions SIMD de façon portable.
+
+---
+
+## Concepts clés (Panama)
+
+Intérêt: connaître les briques pour comprendre la FFM et la Vector API.
+
+- FFM API: MemorySegment, Arena/MemorySession, ValueLayout, Linker, SymbolLookup.
+- jextract: outil pour générer des bindings Java à partir d’en-têtes C.
+- Vector API: opérations SIMD portables (FloatVector, IntVector, Species).
+- Sécurité: bornes, portée d’allocation, pinning, scopes de vie pour éviter UBs.
+
+---
+
+## JEPs (Panama) — repères par version
+
+Intérêt: situer les jalons; toujours vérifier l’index JEP pour l’état exact.
+
+- Java 16 — 338 (Vector API, incubator)
+- Java 17 — 412 (FFM, incubator); 414 (Vector API, 2e incubator)
+- Java 18 — 419 (FFM, 2e incubator); 417 (Vector API, 3e incubator)
+- Java 19 — 424 (FFM, 3e incubator); 426 (Vector API, 4e incubator)
+- Java 20 — 434 (FFM, Preview); 438 (Vector API, 5e incubator)
+- Java 21 — 442 (FFM, 2e Preview); 448 (Vector API, 6e incubator)
+- Java 22 — 454 (FFM, Final); 460 (Vector API, 7e incubator)
+- Java 23 — 469 (Vector API, 8e incubator) — à confirmer via https://openjdk.org/jeps/0
+
+Note: l’état (incubator/preview/final) évolue; se référer à l’index JEP.
+
+---
+
+## Exemple: appel d’une fonction C avec FFM (indicatif)
+
+Intérêt: montrer l’appel d’une fonction native sans JNI manuel.
+
+```java
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
+
+Linker linker = Linker.nativeLinker();
+try (var arena = Arena.ofConfined()) {
+  SymbolLookup stdlib = linker.defaultLookup();
+  var strlen = linker.downcallHandle(
+      stdlib.find("strlen").orElseThrow(),
+      FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS)
+  );
+  MemorySegment cString = arena.allocateUtf8String("Hello Panama");
+  long len = (long) strlen.invoke(cString);
+  System.out.println(len);
+}
+```
+
+---
+
+## Exemple: Vector API (indicatif)
+
+Intérêt: exploiter les SIMD pour des boucles numériques plus rapides.
+
+```java
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorSpecies;
+
+static final VectorSpecies<Float> SPEC = FloatVector.SPECIES_PREFERRED;
+
+void saxpy(float a, float[] x, float[] y) {
+  int i = 0;
+  int upper = SPEC.loopBound(x.length);
+  for (; i < upper; i += SPEC.length()) {
+    var vx = FloatVector.fromArray(SPEC, x, i);
+    var vy = FloatVector.fromArray(SPEC, y, i);
+    vy.mul(a).add(vx).intoArray(y, i);
+  }
+  for (; i < x.length; i++) {
+    y[i] = a * y[i] + x[i];
+  }
+}
+```
+
+---
+
+## Où s’insère Panama vs Amber/Valhalla/Leyden/Loom/Lilliput ?
+
+Intérêt: positionner Panama parmi les autres projets OpenJDK.
+
+- Amber: expressivité du langage et modélisation.
+- Valhalla: modèle de types et représentation mémoire pour perfs.
+- Leyden: optimisation build‑time et images statiques.
+- Loom: concurrence simplifiée (virtual threads, structured concurrency).
+- Lilliput: entêtes d’objets plus compacts (densité mémoire).
+- Panama: interop natif sûre (FFM), accès mémoire off-heap et SIMD portable (Vector API).
+
+---
+
+## Références (Panama)
+
+Intérêt: accéder rapidement aux ressources officielles.
+
+- OpenJDK Project Panama: https://openjdk.org/projects/panama/
+- Foreign Function & Memory API (JEPs): https://openjdk.org/jeps/454
+- Vector API (JEPs): https://openjdk.org/jeps/460
+- jextract (repo): https://github.com/openjdk/jextract
+- JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
 ## Remarques
 
 Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
 
-Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden, Loom et Lilliput, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
+Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden, Loom, Lilliput et Panama, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
 </textarea>
 
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
