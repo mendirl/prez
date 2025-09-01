@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Projet Amber — Présentation</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    .remark-slide-content { font-size: 28px; }
+    code { font-size: 0.9em; }
+    pre code { font-size: 0.8em; line-height: 1.3; }
+  </style>
+</head>
+<body>
+<textarea id="source" style="display:none;">
+class: center, middle
+
+# Résumé du Projet Amber (Java)
+
+Intérêt: cadrer l’objectif du projet et pourquoi il accélère l’évolution du langage.
+
+Le Projet Amber est une initiative de l’OpenJDK visant à accélérer l’évolution du langage Java avec des fonctionnalités concises et expressives.
+
+---
+
+## Périmètre
+
+Intérêt: clarifier ce qui relève d’Amber (syntaxe, modélisation) vs. autres projets (Loom, Panama).
+
+Important: Project Amber ne couvre pas la concurrence bas niveau (Loom) ni l’interopérabilité native (Panama). Il se concentre sur la syntaxe et la modélisation des données.
+
+---
+
+## Principales fonctionnalités
+
+Intérêt: vision d’ensemble des nouveautés majeures pour naviguer dans la suite des pages.
+
+- var (inférence de type locale) — JEP 286 (Java 10)
+- Text Blocks — JEP 355/378 (Java 15)
+- Switch Expressions — JEP 325/354/361 (Java 14)
+- Pattern Matching pour `instanceof` — JEP 305/375/394 (Java 16)
+- Records — JEP 359/384/395 (Java 16)
+- Sealed Classes — JEP 360/397/409 (Java 17)
+- Pattern Matching pour `switch` — JEP 406/420/433/441 (Java 21)
+- Record Patterns — JEP 405/432/440 (Java 21)
+- String Templates — JEP 430/459/465 (preview)
+- Unnamed Patterns/Variables — JEP 443/456 (preview)
+
+---
+
+## Exemples: var, text blocks
+
+Intérêt: écrire moins de code répétitif (var) et manipuler des chaînes multi‑lignes propres (text blocks).
+
+JEPs (par version): Java 10 — 286 (var); Java 15 — 355/378 (Text Blocks)
+
+```java
+var list = List.of("a", "b");
+
+String json = """
+{
+  "name": "Amber",
+  "active": true
+}
+""";
+```
+
+---
+
+## Switch expressions
+
+Intérêt: rendre les branches exhaustives, exprimer des valeurs et réduire le boilerplate des instructions conditionnelles.
+
+JEPs (par version): Java 12 — 325; Java 13 — 354; Java 14 — 361
+
+```java
+int days = switch (month) {
+  case JAN, MAR, MAY -> 31;
+  case APR -> 30;
+  default -> 28;
+};
+```
+
+---
+
+## Pattern matching, records, sealed
+
+Intérêt: mieux modéliser le domaine (records), contrôler l’héritage (sealed) et simplifier le dispatch (pattern matching).
+
+JEPs (par version):
+- Records: Java 14 — 359; Java 15 — 384; Java 16 — 395
+- Sealed Classes: Java 15 — 360; Java 16 — 397; Java 17 — 409
+
+```java
+sealed interface Shape permits Circle, Rectangle {}
+record Circle(double r) implements Shape {}
+record Rectangle(double w, double h) implements Shape {}
+
+static double area(Shape s) {
+  return switch (s) {
+    case Circle c -> Math.PI * c.r() * c.r();
+    case Rectangle(var w, var h) -> w * h;
+  };
+}
+```
+
+---
+
+## Pattern matching pour instanceof et switch
+
+Intérêt: écrire des tests de type et des choix de contrôle plus sûrs et plus concis, en évitant les casts et les erreurs.
+
+JEPs (par version):
+- instanceof: Java 10 — 305; Java 14 — 375; Java 16 — 394
+- switch: Java 17 — 406; Java 18 — 420; Java 19 — 433; Java 21 — 441
+
+```java
+if (o instanceof String s) {
+  System.out.println(s.length());
+}
+
+String d = switch (o) {
+  case Integer i -> "int=" + i;
+  case String s -> s;
+  default -> "?";
+};
+```
+
+---
+
+## Record patterns
+
+Intérêt: déstructurer des enregistrements directement dans les conditions pour extraire les champs de façon sûre.
+
+JEPs (par version): Java 19 — 405; Java 20 — 432; Java 21 — 440
+
+```java
+if (p instanceof Point(int x, int y)) {
+  // ...
+}
+```
+
+---
+
+## String templates (preview)
+
+Intérêt: interpoler des valeurs dans des chaînes de manière lisible et potentiellement plus sûre (moteurs de templates).
+
+JEPs (par version): Java 21 — 430; Java 22 — 459; Java 23 — 465 (preview)
+
+```java
+String msg = STR."Hello, \{user.name()}!";
+```
+
+---
+
+## Bénéfices clés
+
+Intérêt: synthèse finale des gains de productivité, de sûreté et de lisibilité apportés par Amber.
+
+- Moins de verbosité
+- Modélisation de données claire (records, sealed)
+- Logique de contrôle sûre et expressive (switch, patterns)
+- Chaînes multi‑lignes lisibles (text blocks)
+
+---
+
+## Références
+
+Intérêt: accéder rapidement aux ressources officielles, spécifications et état des JEPs.
+
+- OpenJDK Project Amber: https://openjdk.org/projects/amber/
+- Design notes (JEPs): https://openjdk.org/projects/amber/design-notes
+- JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
+## Projet Valhalla — aperçu
+
+Intérêt: comprendre l’objectif de Valhalla (performances et modélisation) et son lien avec l’écosystème Java.
+
+Le Projet Valhalla vise à introduire des types valeur et des classes primitives (sans identité), ainsi que la spécialisation des génériques, afin de réduire l’overhead d’allocation/indirection et d’améliorer la locality des données.
+
+---
+
+## Concepts clés (Valhalla)
+
+Intérêt: poser les notions pour lire les exemples et les JEPs.
+
+- Value objects (objets sans identité) et classes primitives: pas d’égalité par identité, potentiellement flattenés en mémoire.
+- Nullabilité contrôlée: types valeur non-null par défaut, variantes nullable possibles selon les propositions.
+- Flattening/inline: disposer les champs en ligne pour éviter les pointeurs (meilleure locality/cache).
+- Génériques spécialisés: List<int> sans boxing, évite Integer et l’auto-boxing.
+
+---
+
+## JEPs (Valhalla) — repères par version
+
+Intérêt: situer l’avancement dans les JDK récents (évolutif, à vérifier régulièrement).
+
+- Java 22–23: prototypes/EA autour des classes primitives et valeur (préviews successives).
+- JEP 401 (Primitive types in patterns, hypothétique), JEP 402/404 (spécialisations génériques, exploratoires) — à confirmer selon l’index JEP.
+- Suivre: https://openjdk.org/projects/valhalla/ et https://openjdk.org/jeps/0 (mots‑clés: Valhalla, primitive classes, value objects, specialized generics).
+
+Note: La numérotation exacte des JEP Valhalla évolue; privilégier l’index JEP pour l’état courant.
+
+---
+
+## Exemples (hypothétiques / preview)
+
+Intérêt: illustrer l’ambition (syntaxe indicative; peut différer des builds EA).
+
+```java
+// Déclaration d’une classe primitive (valeur) — syntaxe sujette à changement
+primitive class Complex {
+  double re;
+  double im;
+  double abs() { return Math.hypot(re, im); }
+}
+
+// Utilisation sans boxing et avec flattening potentiel
+var nums = Vector.ofInt(1, 2, 3); // Ex.: collections/génériques spécialisés
+```
+
+---
+
+## Où s’insère Valhalla vs Amber ?
+
+Intérêt: distinguer objectifs.
+
+- Amber: expressivité et concision de la syntaxe (records, patterns, switch, templates).
+- Valhalla: modèle de types et représentation mémoire (types valeur, classes primitives, génériques spécialisés) pour des gains de performance.
+
+---
+
+## Références
+
+Intérêt: accéder rapidement aux ressources officielles, spécifications et état des JEPs.
+
+- OpenJDK Project Amber: https://openjdk.org/projects/amber/
+- OpenJDK Project Valhalla: https://openjdk.org/projects/valhalla/
+- Design notes (Amber): https://openjdk.org/projects/amber/design-notes
+- JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
+## Remarques
+
+Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
+
+Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, fiez‑vous aux builds EA et aux JEPs en cours d’élaboration.
+</textarea>
+
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>
+  var slideshow = remark.create({
+    ratio: '16:9',
+    highlightStyle: 'github',
+    highlightLines: true,
+    navigation: {
+      scroll: false,
+      touch: true
+    }
+  });
+</script>
+</body>
+</html>
