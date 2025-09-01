@@ -571,11 +571,109 @@ Intérêt: accéder rapidement aux ressources officielles.
 
 ---
 
+## Projet Babylon — aperçu
+
+Intérêt: offrir des capacités de métaprogrammation modernes (code reflection), de génération/transformations de code et d’accélération hétérogène (HAT), tout en restant sûres et portables.
+
+Le Projet Babylon explore une "code reflection" (réflexion du code) permettant d’inspecter/manipuler des modèles de code Java, la génération de code sécurisée et des outils pour cibler des accélérateurs (GPU/TPU) via HAT (Heterogeneous Accelerator Toolkit).
+
+---
+
+## Concepts clés (Babylon)
+
+Intérêt: comprendre les briques proposées et leurs usages.
+
+- Code Reflection: représentation structurée du code (modèle de code) pour analyse, transformation et génération.
+- Safe metaprogramming: API typées pour éviter la génération de code dangereux et préserver la lisibilité/outillage.
+- HAT (Heterogeneous Accelerator Toolkit): exécuter certains kernels Java sur GPU/accélérateurs.
+- Intégration écosystème: coopération avec le compilateur/JIT et outillage (débogage, diagnostics).
+
+---
+
+## JEPs (Babylon) — repères par version
+
+Intérêt: repérer les jalons; vérifier l’index JEP pour l’état exact (projet très évolutif).
+
+- Java 22–23+: premières propositions publiques autour de la code reflection et HAT (évolutif).
+- Suivre: https://openjdk.org/projects/babylon/ et https://openjdk.org/jeps/0 (mots‑clés: code reflection, HAT, Babylon).
+
+Note: la numérotation/état précis des JEP Babylon change rapidement; consultez l’index JEP.
+
+---
+
+## Exemple (indicatif) — Code Reflection
+
+Intérêt: illustrer l’inspection/manipulation de code de manière typée (API et noms susceptibles d’évoluer).
+
+```java
+// API indicative — sujet à changement selon les prototypes Babylon
+import jdk.babylon.code.*; // fictif/indicatif
+
+// Obtenir un modèle de code pour une méthode et effectuer une transformation simple
+CodeModel model = CodeReflection.of(MyClass.class).method("compute").code();
+var lambdaBodies = model.findNodes(n -> n.isLambda());
+for (var lam : lambdaBodies) {
+  // Exemple: insérer un log au début du lambda (API hypothetique)
+  lam.prepend(Code.snippet("System.out.println(\"enter\");"));
+}
+var generated = model.generate();
+```
+
+---
+
+## Exemple (indicatif) — HAT (accélérateur)
+
+Intérêt: montrer l’intention d’écrire un kernel en Java et de le déployer sur un accélérateur.
+
+```java
+// API indicative — sujet à changement selon HAT
+import jdk.babylon.hat.*; // fictif/indicatif
+
+@Kernel
+void saxpy(float a, float[] x, float[] y) {
+  int i = KernelContext.globalId();
+  if (i < x.length) {
+    y[i] = a * y[i] + x[i];
+  }
+}
+
+// soumission du kernel sur un device
+Device gpu = Devices.best();
+KernelHandle k = gpu.compile(this::saxpy);
+k.launch(NDRange.of(y.length), 2.0f, x, y);
+```
+
+---
+
+## Où s’insère Babylon vs Amber/Valhalla/Leyden/Loom/Lilliput/Panama ?
+
+Intérêt: positionner Babylon parmi les autres projets OpenJDK.
+
+- Amber: expressivité du langage et modélisation.
+- Valhalla: modèle de types et représentation mémoire pour perfs.
+- Leyden: optimisation build‑time et images statiques.
+- Loom: concurrence simplifiée (virtual threads, structured concurrency).
+- Lilliput: entêtes d’objets plus compacts (densité mémoire).
+- Panama: interop natif et SIMD (FFM/Vector API).
+- Babylon: métaprogrammation sûre (code reflection), génération de code et accélération hétérogène (HAT).
+
+---
+
+## Références (Babylon)
+
+Intérêt: accéder rapidement aux ressources officielles.
+
+- OpenJDK Project Babylon: https://openjdk.org/projects/babylon/
+- HAT (overview/blog/prototype): https://openjdk.org/projects/babylon/ (sections HAT) — et annonces associées
+- JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
 ## Remarques
 
 Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
 
-Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden, Loom, Lilliput et Panama, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
+Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden, Loom, Lilliput, Panama et Babylon, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
 </textarea>
 
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
