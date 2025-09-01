@@ -396,11 +396,72 @@ Intérêt: accéder rapidement aux ressources officielles.
 
 ---
 
+## Projet Lilliput — aperçu
+
+Intérêt: augmenter la densité mémoire et réduire l’empreinte en réduisant la taille des en-têtes d’objets de la JVM.
+
+Le Projet Lilliput vise à compacter les object headers (ex.: passer de 128/96 bits vers 64 bits sur certaines plateformes), tout en préservant les fonctionnalités (verrouillage, hashCode, marquage GC), afin d’améliorer la densité du heap et potentiellement la performance des applications à forte allocation.
+
+---
+
+## Concepts clés (Lilliput)
+
+Intérêt: comprendre ce qui compose l’entête d’objet et les compromis.
+
+- Object header: mark word (verrouillage, identité/hash), pointeur de classe (Klass pointer), éventuels bits GC.
+- Compression/encodage: empaqueter les métadonnées dans moins de bits (pointer compression, marquage compact).
+- Impact GC et verrous: compatibilité avec divers collecteurs (G1, Shenandoah, ZGC) et modes de locking/biased locking (selon l’état du projet).
+- Alignement et taille minimale d’objet: ajustements pour conserver l’alignement mémoire tout en réduisant l’overhead.
+
+---
+
+## Repères (Lilliput) — à suivre par version
+
+Intérêt: pointer vers les jalons sans figer des numéros susceptibles d’évoluer.
+
+- Java 21–23+: travaux continus dans des branches/prototypes Lilliput (selon builds JVM).
+- Suivre: https://openjdk.org/projects/lilliput/ et l’index JEP: https://openjdk.org/jeps/0 (mots‑clés: Lilliput, object header, mark word).
+- Note: l’intégration/état exact dépend des JEP et des portages par collecteur; vérifiez régulièrement l’index JEP.
+
+---
+
+## Impacts et cas d’usage
+
+Intérêt: relier la réduction d’entête à des bénéfices concrets.
+
+- Densité mémoire accrue: plus d’objets par cache line/page → meilleure locality potentielle.
+- Réduction du RSS/heap pour applis orientées objets et micro-objets.
+- Gains indirects possibles sur le GC et la bande passante mémoire.
+- Pertinence en environnements cloud/containers à ressources contraintes.
+
+---
+
+## Où s’insère Lilliput vs Amber/Valhalla/Leyden/Loom ?
+
+Intérêt: positionner Lilliput parmi les autres projets.
+
+- Amber: expressivité et concision du langage.
+- Valhalla: modèle de types et représentation (types valeur, génériques spécialisés).
+- Leyden: optimisation build‑time et images statiques pour démarrage/empreinte.
+- Loom: concurrence simplifiée (virtual threads, structured concurrency).
+- Lilliput: efficacité mémoire au niveau de la VM via entêtes d’objets plus compacts.
+
+---
+
+## Références (Lilliput)
+
+Intérêt: accéder rapidement aux ressources officielles.
+
+- OpenJDK Project Lilliput: https://openjdk.org/projects/lilliput/
+- JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
 ## Remarques
 
 Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
 
-Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden et Loom, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
+Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden, Loom et Lilliput, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
 </textarea>
 
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
