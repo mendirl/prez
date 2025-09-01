@@ -300,11 +300,107 @@ Intérêt: positionner Leyden par rapport aux autres projets OpenJDK.
 
 ---
 
+## Projet Loom — aperçu
+
+Intérêt: simplifier la concurrence en offrant des threads légers (virtual threads) à coût réduit, sans changer le modèle de programmation.
+
+Le Projet Loom apporte des virtual threads, la concurrence structurée et les scoped values, afin de rendre les applications concurrentes plus simples, plus lisibles et plus scalables, sans réécrire en mode async explicite.
+
+---
+
+## Concepts clés (Loom)
+
+Intérêt: poser les notions pour comprendre comment Loom change l’écriture de code concurrent.
+
+- Virtual Threads (threads légers gérés par la JVM, M:N sur OS threads).
+- Structured Concurrency (gérer un groupe de tâches comme une unité, avec scopes et lifecycles).
+- Scoped Values (successeurs thread-safe aux ThreadLocals pour passer des contextes immuables).
+- Continuations (infrastructure sous-jacente permettant la suspension/reprise des virtual threads).
+
+---
+
+## JEPs (Loom) — repères par version
+
+Intérêt: repérer les jalons majeurs et leur état; vérifiez l’index JEP pour l’état exact.
+
+- Java 19 — 425 (Virtual Threads, preview); 428 (Structured Concurrency, incubator); 429 (Scoped Values, incubator)
+- Java 20 — 436 (Virtual Threads, 2e preview); 437 (Structured Concurrency, 2e incubator); 429 (Scoped Values, incubator)
+- Java 21 — 444 (Virtual Threads, final); 453 (Structured Concurrency, preview); 446 (Scoped Values, preview)
+- Java 22 — 462 (Structured Concurrency, 2e preview); 464 (Scoped Values, 2e preview)
+- Java 23 — 476 (Scoped Values, 3e preview) — à confirmer via https://openjdk.org/jeps/0
+
+Note: toujours vérifier l’index JEP pour les derniers états (final/preview/incubator).
+
+---
+
+## Exemple: Virtual Threads
+
+Intérêt: paralléliser massivement des tâches bloquantes avec une syntaxe familière.
+
+```java
+try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+  List<Callable<String>> tasks = urls.stream()
+      .map(url -> (Callable<String>) () -> httpClient.get(url))
+      .toList();
+  var results = executor.invokeAll(tasks);
+}
+
+// Ou créer un virtual thread directement
+Thread.startVirtualThread(() -> doBlockingWork());
+```
+
+---
+
+## Exemple: Structured Concurrency / Scoped Values (indicatif)
+
+Intérêt: gérer un groupe de sous-tâches comme une unité et propager un contexte immuable.
+
+```java
+import java.util.concurrent.StructuredTaskScope;
+
+static final jdk.incubator.concurrent.ScopedValue<String> USER = jdk.incubator.concurrent.ScopedValue.newInstance();
+
+String fetchProfile(String userId) throws InterruptedException {
+  return jdk.incubator.concurrent.ScopedValue.where(USER, userId)
+      .call(() -> {
+        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+          var user   = scope.fork(() -> loadUser(USER.get()));
+          var orders = scope.fork(() -> loadOrders(USER.get()));
+          scope.join();
+          scope.throwIfFailed();
+          return format(user.resultNow(), orders.resultNow());
+        }
+      });
+}
+```
+
+---
+
+## Où s’insère Loom vs Amber/Valhalla/Leyden ?
+
+Intérêt: positionner Loom par rapport aux autres projets OpenJDK.
+
+- Amber: expressivité du langage et modélisation.
+- Valhalla: modèle de types et représentation mémoire pour perfs.
+- Leyden: packaging/optimisation build‑time et images statiques.
+- Loom: concurrence simplifiée via virtual threads, structured concurrency et scoped values.
+
+---
+
+## Références (Loom)
+
+Intérêt: accéder rapidement aux ressources officielles.
+
+- OpenJDK Project Loom: https://openjdk.org/projects/loom/
+- JDK JEP Index: https://openjdk.org/jeps/0
+
+---
+
 ## Remarques
 
 Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
 
-Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla et Leyden, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
+Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden et Loom, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
 </textarea>
 
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
