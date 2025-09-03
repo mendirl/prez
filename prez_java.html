@@ -798,40 +798,23 @@ static final ScopedValue<Integer> CONTEXT = ScopedValue.newInstance();
 - https://www.youtube.com/watch?v=vLJDPmXufQw
 
 ---
-          è é ô ê è à â ô î et û
+## Projet Lilliput
 
-## Projet Lilliput — aperçu
-
-Intérêt: augmenter la densité mémoire et réduire l’empreinte en réduisant la taille des en-têtes d’objets de la JVM.
-
-Le Projet Lilliput vise à compacter les object headers (ex.: passer de 128/96 bits vers 64 bits sur certaines plateformes), tout en préservant les fonctionnalités (verrouillage, hashCode, marquage GC), afin d’améliorer la densité du heap et potentiellement la performance des applications à forte allocation.
+Le Projet  vise à reduire la taille des en-tête des objets (passer de 128 bits à 64 bits voir moins), réduisant ainsi l'empreinte mémoire et améliorant les performances globales de la plateforme.
 
 ---
 
-## Concepts clés (Lilliput)
+## Concepts clés
 
-Intérêt: comprendre ce qui compose l’entête d’objet et les compromis.
-
-- Object header: mark word (verrouillage, identité/hash), pointeur de classe (Klass pointer), éventuels bits GC.
-- Compression/encodage: empaqueter les métadonnées dans moins de bits (pointer compression, marquage compact).
-- Impact GC et verrous: compatibilité avec divers collecteurs (G1, Shenandoah, ZGC) et modes de locking/biased locking (selon l’état du projet).
-- Alignement et taille minimale d’objet: ajustements pour conserver l’alignement mémoire tout en réduisant l’overhead.
-
----
-
-## Repères (Lilliput) — à suivre par version
-
-Intérêt: pointer vers les jalons sans figer des numéros susceptibles d’évoluer.
-
-- Java 21–23+: travaux continus dans des branches/prototypes Lilliput (selon builds JVM).
-- Suivre: https://openjdk.org/projects/lilliput/ et l’index JEP: https://openjdk.org/jeps/0 (mots‑clés: Lilliput, object header, mark word).
-- Note: l’intégration/état exact dépend des JEP et des portages par collecteur; vérifiez régulièrement l’index JEP.
+- JEP 450: Compact Object Headers (Experimental)<br>
+    -> Object header: mark word (verrouillage, identité/hash), pointeur de classe (Klass pointer), éventuels bits GC.<br>
+    -> Compression/encodage: empaqueter les métadonnées dans moins de bits (pointer compression, marquage compact).<br>
+    -> Impact GC et verrous: compatibilité avec divers collecteurs (G1, Shenandoah, ZGC) et modes de locking/biased locking (selon l’état du projet).<br>
+    -> Alignement et taille minimale d’objet: ajustements pour conserver l’alignement mémoire tout en réduisant l’overhead.<br>
 
 ---
 
 ## Impacts et cas d’usage
-
-Intérêt: relier la réduction d’entête à des bénéfices concrets.
 
 - Densité mémoire accrue: plus d’objets par cache line/page → meilleure locality potentielle.
 - Réduction du RSS/heap pour applis orientées objets et micro-objets.
@@ -840,75 +823,31 @@ Intérêt: relier la réduction d’entête à des bénéfices concrets.
 
 ---
 
-## Où s’insère Lilliput vs Amber/Valhalla/Leyden/Loom ?
-
-Intérêt: positionner Lilliput parmi les autres projets.
-
-- Amber: expressivité et concision du langage.
-- Valhalla: modèle de types et représentation (types valeur, génériques spécialisés).
-- Leyden: optimisation build‑time et images statiques pour démarrage/empreinte.
-- Loom: concurrence simplifiée (virtual threads, structured concurrency).
-- Lilliput: efficacité mémoire au niveau de la VM via entêtes d’objets plus compacts.
-
----
-
-## Références (Lilliput)
-
-Intérêt: accéder rapidement aux ressources officielles.
+## Références
 
 - OpenJDK Project Lilliput: https://openjdk.org/projects/lilliput/
-- JDK JEP Index: https://openjdk.org/jeps/0
+- https://wiki.openjdk.org/display/lilliput
+
+---
+## Projet Panama
+
+Son objectif est d'offrir une meilleur interopérabilité avec le monde natif, que ce soit le code natif que la mémoire off-heap.
 
 ---
 
-## Projet Panama — aperçu
+## Concepts clés
 
-Intérêt: faciliter l’interopérabilité native (appel de fonctions C, accès mémoire hors-heap) et accélérer certaines charges via Vector API.
-
-Le Projet Panama apporte la Foreign Function & Memory API (FFM) pour appeler des bibliothèques natives en Java, gérer de la mémoire off-heap en sécurité, et la Vector API pour exploiter les instructions SIMD de façon portable.
-
----
-
-## Concepts clés (Panama)
-
-Intérêt: connaître les briques pour comprendre la FFM et la Vector API.
-
-- FFM API: MemorySegment, Arena/MemorySession, ValueLayout, Linker, SymbolLookup.
-- jextract: outil pour générer des bindings Java à partir d’en-têtes C.
-- Vector API: opérations SIMD portables (FloatVector, IntVector, Species).
-- Sécurité: bornes, portée d’allocation, pinning, scopes de vie pour éviter UBs.
+- JEP 454: Foreign Function & Memory API <br>
+    -> utilisation de code et données en dehors du scope de l'exécution de l'application Java (éviter JNI et Unsafe)<br>
+- JEP 508: Vector API (Tenth Incubator) <br>
+    -> permettre d'utiliser les instructions vectorielles du CPU (SIMD), meilleurs performance par rapport au calcul scalaire<br>
 
 ---
 
-## JEPs (Panama) — repères par version
+## Exemple: appel d’une fonction C avec FFM
 
-Intérêt: situer les jalons; toujours vérifier l’index JEP pour l’état exact.
-
-- Java 16 — 338 (Vector API, incubator)
-- Java 17 — 412 (FFM, incubator); 414 (Vector API, 2e incubator)
-- Java 18 — 419 (FFM, 2e incubator); 417 (Vector API, 3e incubator)
-- Java 19 — 424 (FFM, 3e incubator); 426 (Vector API, 4e incubator)
-- Java 20 — 434 (FFM, Preview); 438 (Vector API, 5e incubator)
-- Java 21 — 442 (FFM, 2e Preview); 448 (Vector API, 6e incubator)
-- Java 22 — 454 (FFM, Final); 460 (Vector API, 7e incubator)
-- Java 23 — 469 (Vector API, 8e incubator) — à confirmer via https://openjdk.org/jeps/0
-
-Note: l’état (incubator/preview/final) évolue; se référer à l’index JEP.
-
----
-
-## Exemple: appel d’une fonction C avec FFM (indicatif)
-
-Intérêt: montrer l’appel d’une fonction native sans JNI manuel.
 
 ```java
-import java.lang.foreign.Arena;
-import java.lang.foreign.FunctionDescriptor;
-import java.lang.foreign.Linker;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SymbolLookup;
-import java.lang.foreign.ValueLayout;
-
 Linker linker = Linker.nativeLinker();
 try (var arena = Arena.ofConfined()) {
   SymbolLookup stdlib = linker.defaultLookup();
@@ -924,160 +863,58 @@ try (var arena = Arena.ofConfined()) {
 
 ---
 
-## Exemple: Vector API (indicatif)
-
-Intérêt: exploiter les SIMD pour des boucles numériques plus rapides.
+## Exemple: accès memoire off-heap avec FFM
 
 ```java
-import jdk.incubator.vector.FloatVector;
-import jdk.incubator.vector.VectorSpecies;
+// OLD
+long address = 0;
+address = unsafe.allocateMemory(4);
+int valueToWrite = 42;
+unsafe.putInt(address, valueToWrite);
+int readValue = unsafe.getInt(address);
 
-static final VectorSpecies<Float> SPEC = FloatVector.SPECIES_PREFERRED;
-
-void saxpy(float a, float[] x, float[] y) {
-  int i = 0;
-  int upper = SPEC.loopBound(x.length);
-  for (; i < upper; i += SPEC.length()) {
-    var vx = FloatVector.fromArray(SPEC, x, i);
-    var vy = FloatVector.fromArray(SPEC, y, i);
-    vy.mul(a).add(vx).intoArray(y, i);
-  }
-  for (; i < x.length; i++) {
-    y[i] = a * y[i] + x[i];
-  }
+// NEW
+try (Arena arena = Arena.ofConfined()) {
+    MemorySegment segment = arena.allocate(ValueLayout.JAVA_INT);
+    int valueToWrite = 42;
+    segment.set(ValueLayout.JAVA_INT, 0, valueToWrite);
+    int readValue = segment.get(ValueLayout.JAVA_INT, 0);
 }
 ```
 
 ---
+## Exemple: Vector API
+```java
+private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
 
-## Où s’insère Panama vs Amber/Valhalla/Leyden/Loom/Lilliput ?
+    public static void scalarComputation(float[] a, float[] b, float[] c) {
+        for (int i = 0; i < a.length; i++) { c[i] = a[i] + b[i]; }
+    }
 
-Intérêt: positionner Panama parmi les autres projets OpenJDK.
-
-- Amber: expressivité du langage et modélisation.
-- Valhalla: modèle de types et représentation mémoire pour perfs.
-- Leyden: optimisation build‑time et images statiques.
-- Loom: concurrence simplifiée (virtual threads, structured concurrency).
-- Lilliput: entêtes d’objets plus compacts (densité mémoire).
-- Panama: interop natif sûre (FFM), accès mémoire off-heap et SIMD portable (Vector API).
+    public static void vectorComputation(float[] a, float[] b, float[] c) {
+        int i = 0;
+        int bound = SPECIES.loopBound(a.length); // Calcule la limite pour la boucle principale
+        // Boucle principale : traite les données par blocs de la taille du vecteur (SPECIES.length())
+        for (; i < bound; i += SPECIES.length()) {
+            FloatVector va = FloatVector.fromArray(SPECIES, a, i);
+            FloatVector vb = FloatVector.fromArray(SPECIES, b, i);
+            // 2. Effectue l'addition vectorielle (plusieurs additions en une seule instruction CPU)
+            FloatVector vc = va.add(vb);
+            // 3. Stocke le vecteur résultat dans le tableau de destination
+            vc.intoArray(c, i);
+        }
+        // Boucle de "nettoyage" (tail loop) : traite les éléments restants
+        // si la taille du tableau n'est pas un multiple parfait de la taille du vecteur.
+        for (; i < a.length; i++) { c[i] = a[i] + b[i];}
+    }
+```
 
 ---
 
-## Références (Panama)
-
-Intérêt: accéder rapidement aux ressources officielles.
+## Références
 
 - OpenJDK Project Panama: https://openjdk.org/projects/panama/
-- Foreign Function & Memory API (JEPs): https://openjdk.org/jeps/454
-- Vector API (JEPs): https://openjdk.org/jeps/460
-- jextract (repo): https://github.com/openjdk/jextract
-- JDK JEP Index: https://openjdk.org/jeps/0
 
----
-
-## Projet Babylon — aperçu
-
-Intérêt: offrir des capacités de métaprogrammation modernes (code reflection), de génération/transformations de code et d’accélération hétérogène (HAT), tout en restant sûres et portables.
-
-Le Projet Babylon explore une "code reflection" (réflexion du code) permettant d’inspecter/manipuler des modèles de code Java, la génération de code sécurisée et des outils pour cibler des accélérateurs (GPU/TPU) via HAT (Heterogeneous Accelerator Toolkit).
-
----
-
-## Concepts clés (Babylon)
-
-Intérêt: comprendre les briques proposées et leurs usages.
-
-- Code Reflection: représentation structurée du code (modèle de code) pour analyse, transformation et génération.
-- Safe metaprogramming: API typées pour éviter la génération de code dangereux et préserver la lisibilité/outillage.
-- HAT (Heterogeneous Accelerator Toolkit): exécuter certains kernels Java sur GPU/accélérateurs.
-- Intégration écosystème: coopération avec le compilateur/JIT et outillage (débogage, diagnostics).
-
----
-
-## JEPs (Babylon) — repères par version
-
-Intérêt: repérer les jalons; vérifier l’index JEP pour l’état exact (projet très évolutif).
-
-- Java 22–23+: premières propositions publiques autour de la code reflection et HAT (évolutif).
-- Suivre: https://openjdk.org/projects/babylon/ et https://openjdk.org/jeps/0 (mots‑clés: code reflection, HAT, Babylon).
-
-Note: la numérotation/état précis des JEP Babylon change rapidement; consultez l’index JEP.
-
----
-
-## Exemple (indicatif) — Code Reflection
-
-Intérêt: illustrer l’inspection/manipulation de code de manière typée (API et noms susceptibles d’évoluer).
-
-```java
-// API indicative — sujet à changement selon les prototypes Babylon
-import jdk.babylon.code.*; // fictif/indicatif
-
-// Obtenir un modèle de code pour une méthode et effectuer une transformation simple
-CodeModel model = CodeReflection.of(MyClass.class).method("compute").code();
-var lambdaBodies = model.findNodes(n -> n.isLambda());
-for (var lam : lambdaBodies) {
-  // Exemple: insérer un log au début du lambda (API hypothetique)
-  lam.prepend(Code.snippet("System.out.println(\"enter\");"));
-}
-var generated = model.generate();
-```
-
----
-
-## Exemple (indicatif) — HAT (accélérateur)
-
-Intérêt: montrer l’intention d’écrire un kernel en Java et de le déployer sur un accélérateur.
-
-```java
-// API indicative — sujet à changement selon HAT
-import jdk.babylon.hat.*; // fictif/indicatif
-
-@Kernel
-void saxpy(float a, float[] x, float[] y) {
-  int i = KernelContext.globalId();
-  if (i < x.length) {
-    y[i] = a * y[i] + x[i];
-  }
-}
-
-// soumission du kernel sur un device
-Device gpu = Devices.best();
-KernelHandle k = gpu.compile(this::saxpy);
-k.launch(NDRange.of(y.length), 2.0f, x, y);
-```
-
----
-
-## Où s’insère Babylon vs Amber/Valhalla/Leyden/Loom/Lilliput/Panama ?
-
-Intérêt: positionner Babylon parmi les autres projets OpenJDK.
-
-- Amber: expressivité du langage et modélisation.
-- Valhalla: modèle de types et représentation mémoire pour perfs.
-- Leyden: optimisation build‑time et images statiques.
-- Loom: concurrence simplifiée (virtual threads, structured concurrency).
-- Lilliput: entêtes d’objets plus compacts (densité mémoire).
-- Panama: interop natif et SIMD (FFM/Vector API).
-- Babylon: métaprogrammation sûre (code reflection), génération de code et accélération hétérogène (HAT).
-
----
-
-## Références (Babylon)
-
-Intérêt: accéder rapidement aux ressources officielles.
-
-- OpenJDK Project Babylon: https://openjdk.org/projects/babylon/
-- HAT (overview/blog/prototype): https://openjdk.org/projects/babylon/ (sections HAT) — et annonces associées
-- JDK JEP Index: https://openjdk.org/jeps/0
-
----
-
-## Remarques
-
-Intérêt: rappeler de vérifier l’état le plus récent (release/preview/deprecated) selon la version de JDK.
-
-Vérifiez la JEP correspondante pour l’état le plus à jour (JDK 21–23+), et, pour Valhalla, Leyden, Loom, Lilliput, Panama et Babylon, fiez‑vous aux builds EA, aux toolchains et aux JEPs en cours d’élaboration.
 </textarea>
 
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
