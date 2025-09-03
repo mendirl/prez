@@ -667,13 +667,16 @@ Le but principal de ce projet est d'améliorer le temps de démarrage, le temps 
 
 ## Concepts clés
 
-- JEP 483/514: Ahead-of-Time Class Loading & Linking
-    création d'un cache contenant les classes chargées et liées, prêtes à être utiliser par le classloader.
-- JEP 515: Ahead-of-Time Method Profiling
-    améliorer le warmup en analysant l'utilisation des méthodes lors de la création du cache, facilitant le travail du JIT et sa rapidité à intervenir.
-- JEP 516: Ahead-of-Time Object Caching with Any GC
-    améliorer le cache afin de le rendre compatible est les GC low-latency (ZGC, Shenandoah)
-méliorés.
+- JEP 483/514: Ahead-of-Time Class Loading & Linking<br>
+    -> création d'un cache contenant les classes chargées et liées, prêtes à être utiliser par le classloader.
+
+
+- JEP 515: Ahead-of-Time Method Profiling<br>
+    -> améliorer le warmup en analysant l'utilisation des méthodes lors de la création du cache, facilitant le travail du JIT et sa rapidité à intervenir.
+
+
+- JEP 516: Ahead-of-Time Object Caching with Any GC<br>
+    -> améliorer le cache afin de le rendre compatible est les GC low-latency (ZGC, Shenandoah)
 
 ---
 
@@ -713,48 +716,34 @@ le fichier de cache faisant 130Mo (21,000 classes).
 ---
 ## Projet Loom
 
-Intérêt: simplifier la concurrence en offrant des threads légers (virtual threads) à coût réduit, sans changer le modèle de programmation.
-
-Le Projet Loom apporte des virtual threads, la concurrence structurée et les scoped values, afin de rendre les applications concurrentes plus simples, plus lisibles et plus scalables, sans réécrire en mode async explicite.
+Il apporte des virtual threads, la concurrence structurée et les scoped values, afin de rendre les applications concurrentes plus simples, plus lisibles et plus scalables, sans réécrire en mode async explicite.
 
 ---
+## Concepts clés
 
-## Concepts clés (Loom)
+- JEP 444: Virtual Threads (Java 21)<br>
+    -> threads légers qui reduisent les efforts d'ecriture, de maintenance et d'observation des applications forttement concurrentes
 
-Intérêt: poser les notions pour comprendre comment Loom change l’écriture de code concurrent.
+- JEP 491: Synchronize Virtual Threads without Pinning (Java24)<br>
+    -> permet l'utilisation de methodes "synchronized" sans pinning des threads.
 
-- Virtual Threads (threads légers gérés par la JVM, M:N sur OS threads).
-- Structured Concurrency (gérer un groupe de tâches comme une unité, avec scopes et lifecycles).
-- Scoped Values (successeurs thread-safe aux ThreadLocals pour passer des contextes immuables).
-- Continuations (infrastructure sous-jacente permettant la suspension/reprise des virtual threads).
+- JEP 505: Structured Concurrency (Fifth Preview - Java 25)<br>
+    -> gérer un groupe de tâches comme une unité, rationalisant  la gestion et l'annulation des erreurs, améliorant la fiabilité et l'observabilité
 
----
-
-## JEPs (Loom) — repères par version
-
-Intérêt: repérer les jalons majeurs et leur état; vérifiez l’index JEP pour l’état exact.
-
-- Java 19 — 425 (Virtual Threads, preview); 428 (Structured Concurrency, incubator); 429 (Scoped Values, incubator)
-- Java 20 — 436 (Virtual Threads, 2e preview); 437 (Structured Concurrency, 2e incubator); 429 (Scoped Values, incubator)
-- Java 21 — 444 (Virtual Threads, final); 453 (Structured Concurrency, preview); 446 (Scoped Values, preview)
-- Java 22 — 462 (Structured Concurrency, 2e preview); 464 (Scoped Values, 2e preview)
-- Java 23 — 476 (Scoped Values, 3e preview) — à confirmer via https://openjdk.org/jeps/0
-
-Note: toujours vérifier l’index JEP pour les derniers états (final/preview/incubator).
-
+- JEP 506: Scoped Values (Java 25)<br>
+    -> successeurs thread-safe aux ThreadLocals pour passer des contextes immuables
 ---
 
 ## Exemple: Virtual Threads
-
-Intérêt: paralléliser massivement des tâches bloquantes avec une syntaxe familière.
-
 ```java
-try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
-  List<Callable<String>> tasks = urls.stream()
-      .map(url -> (Callable<String>) () -> httpClient.get(url))
-      .toList();
-  var results = executor.invokeAll(tasks);
-}
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    IntStream.range(0, 10_000).forEach(i -> {
+        executor.submit(() -> {
+            Thread.sleep(Duration.ofSeconds(1));
+            return i;
+        });
+    });
+}  // executor.close() is called implicitly, and waits
 
 // Ou créer un virtual thread directement
 Thread.startVirtualThread(() -> doBlockingWork());
@@ -762,40 +751,54 @@ Thread.startVirtualThread(() -> doBlockingWork());
 
 ---
 
-## Exemple: Structured Concurrency / Scoped Values (indicatif)
-
-Intérêt: gérer un groupe de sous-tâches comme une unité et propager un contexte immuable.
-
+## Exemple: Structured Concurrency
 ```java
-import java.util.concurrent.StructuredTaskScope;
+try (var scope = StructuredTaskScope.open()) {
+    Subtask<String> user = scope.fork(() -> findUser());
+    Subtask<Integer> order = scope.fork(() -> fetchOrder());
 
-static final jdk.incubator.concurrent.ScopedValue<String> USER = jdk.incubator.concurrent.ScopedValue.newInstance();
+    scope.join();   // Join subtasks, propagating exceptions
 
-String fetchProfile(String userId) throws InterruptedException {
-  return jdk.incubator.concurrent.ScopedValue.where(USER, userId)
-      .call(() -> {
-        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
-          var user   = scope.fork(() -> loadUser(USER.get()));
-          var orders = scope.fork(() -> loadOrders(USER.get()));
-          scope.join();
-          scope.throwIfFailed();
-          return format(user.resultNow(), orders.resultNow());
-        }
-      });
+    // Both subtasks have succeeded, so compose their results
+    return new Response(user.get(), order.get());
 }
 ```
+- l'exception d'une sous-tâche va engendrer l'annulation de l'autre,
+- si le thread principal est arrêté, alors les sous-tâches sont annulées,
+- structure claire du code,
+- observabilité, un thread dump contiendra toutes les informations du scope (hiérarchie avec les threads des différentes sous-tâches)
+
 
 ---
 
-## Références (Loom)
+## Exemple: Scoped Values
+```java
+static final ScopedValue<Integer> CONTEXT = ScopedValue.newInstance();
 
-Intérêt: accéder rapidement aux ressources officielles.
+    void main() {
+         ScopedValue
+            .where(CONTEXT, 42) // SpringSecurityContext
+            //   |<--------- SCOPE ----------->|
+            .run(() -> IO.println(CONTEXT.get()))
+
+    CONTEXT.get() // out of scope
+    }
+```
+#### différences avec Thread-Local
+- pas de modification possible,
+- pas de suppression,
+- durée de vie réduite
+- pas de copie lors d'héritage de threads
+
+---
+## Références
 
 - OpenJDK Project Loom: https://openjdk.org/projects/loom/
-- JDK JEP Index: https://openjdk.org/jeps/0
+- https://inside.java/tag/loom
+- https://www.youtube.com/watch?v=vLJDPmXufQw
 
 ---
-          è é ô ê è à
+          è é ô ê è à â ô î et û
 
 ## Projet Lilliput — aperçu
 
