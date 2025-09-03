@@ -73,11 +73,13 @@ Améliorez le langage Java pour étendre l’inférence de type aux déclaration
 **Avant Amber:**
 ```java
 List<String> list = List.of("a", "b");
+List<String> list = new ArrayList<>();
 ```
 
 **Avec Amber:**
 ```java
 var list = List.of("a", "b");
+var list = new ArrayList<String>();
 ```
 
 ---
