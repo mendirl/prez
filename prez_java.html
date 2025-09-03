@@ -514,13 +514,11 @@ void main() {
 ```
 ---
 
----
-
 ## Flexible Constructor Bodies
 ### JEP 513 (finalizing - Java 25)
 
 Permet d'écrire des instructions avant tout appel a d'autres constructeurs, super(...) ou this(...).
-
+---
 **Avant Amber:**
 ```java
 class Person {
@@ -539,6 +537,7 @@ class Employee extends Person {
     }
 }
 ```
+---
 **Avec Amber:**
 ```java
 class Person {
@@ -563,135 +562,156 @@ class Employee extends Person {
 ## Références
 
 - OpenJDK Project Amber: https://openjdk.org/projects/amber/
+- https://www.youtube.com/watch?v=1dY57CDxR14
+
 
 ---
 
-## Projet Valhalla — aperçu
+## Projet Valhalla
 
-Intérêt: comprendre l’objectif de Valhalla (performances et modélisation) et son lien avec l’écosystème Java.
+Son objectif est d'ajouter la notion de `value class` permettant de combiner l'abstraction de la POO avec les performances des types primitifs.
 
-Le Projet Valhalla vise à introduire des types valeur et des classes primitives (sans identité), ainsi que la spécialisation des génériques, afin de réduire l’overhead d’allocation/indirection et d’améliorer la locality des données.
+Cet objectif devrait aussi se retrouver avec les generics.
+
+C'est un "Epic Refactor", ayant des impacts au niveau language, librairies, JVM et hardware.
+
+"Codes like a class, works like an int"
+---
+
+## Buts
+
+- Applatir/Densifier le modèle mémoire pour les graphes d'objets Java
+- Unifier le système de type, il y a un énorme fossé entre les objets et les primitifs.
+- Permettre de créer de nouveaux types en tant que librairies et non plus comme élément du language.
 
 ---
 
-## Concepts clés (Valhalla)
+### Memory layout
 
-Intérêt: poser les notions pour lire les exemples et les JEPs.
+Représentation actuelle <br>
+<img src="val_memory.png" alt="Diagramme mémoire Valhalla" style="width: 700px; height: auto;">
 
-- Value objects (objets sans identité) et classes primitives: pas d’égalité par identité, potentiellement flattenés en mémoire.
-- Nullabilité contrôlée: types valeur non-null par défaut, variantes nullable possibles selon les propositions.
-- Flattening/inline: disposer les champs en ligne pour éviter les pointeurs (meilleure locality/cache).
-- Génériques spécialisés: List<int> sans boxing, évite Integer et l’auto-boxing.
-
----
-
-## JEPs (Valhalla) — repères par version
-
-Intérêt: situer l’avancement dans les JDK récents (évolutif, à vérifier régulièrement).
-
-- Java 22–23: prototypes/EA autour des classes primitives et valeur (préviews successives).
-- JEP 401 (Primitive types in patterns, hypothétique), JEP 402/404 (spécialisations génériques, exploratoires) — à confirmer selon l’index JEP.
-- Suivre: https://openjdk.org/projects/valhalla/ et https://openjdk.org/jeps/0 (mots‑clés: Valhalla, primitive classes, value objects, specialized generics).
-
-Note: La numérotation exacte des JEP Valhalla évolue; privilégier l’index JEP pour l’état courant.
+Utilisation de pointeurs.<br>
+Pas mauvais, mais pas optimisé.<br>
+Avec l'augmentation des processeurs et du nombres d'opérations exécutés, il y a une augmentation des accès mémoires et de possible absence dans le cache.<br>
+Meme problème avec les tableaux
 
 ---
 
-## Exemples (hypothétiques / preview)
+Représentation souhaitée <br>
+<br>
+<img src="val_memory_flat.png" alt="Diagramme mémoire Valhalla" style="width: 200px; height: auto;">
+<br>
+<br>
+Pour les tableaux <br>
+<img src="val_memory_array_flat.png" alt="Diagramme mémoire Valhalla" style="width: 100px; height: auto;">
 
-Intérêt: illustrer l’ambition (syntaxe indicative; peut différer des builds EA).
+---
+
+### Primitifs/Objets
+
+- vieux compromis pour avoir de bonnes performances
+- problèmes avec les génériques
+- tout les sépare (pas d'identité, non nullable, valeur par défaut, build-in, ...)
+
+---
+
+### Alors, on fait quoi ?
+
+2 choses, value classes et nullity information.
+
+#### Value classes (très bientôt) :
 
 ```java
-// Déclaration d’une classe primitive (valeur) — syntaxe sujette à changement
-primitive class Complex {
-  double re;
-  double im;
-  double abs() { return Math.hypot(re, im); }
+value class Complex {
+ /* final */ double re, im;
 }
-
-// Utilisation sans boxing et avec flattening potentiel
-var nums = Vector.ofInt(1, 2, 3); // Ex.: collections/génériques spécialisés
 ```
 
+- très similaire aux "identity" classes (celles que l'on connait tous)
+- tout est final
+- comparaison (==) s'effectue sur les valeurs et non sur l'identité
+- pas de synchronize (absence de monitor), pas de weak reference
+- plus de problème de nullabilité
+- plus de possibilité de mutation
+- fonctionne avec les records
+
 ---
+#### Informations sur la nullité :
 
-## Où s’insère Valhalla vs Amber ?
+Ajouter la possibilité de décorer les types avec des informations sur la nullité.
 
-Intérêt: distinguer objectifs.
+    String!, List?
 
-- Amber: expressivité et concision de la syntaxe (records, patterns, switch, templates).
-- Valhalla: modèle de types et représentation mémoire (types valeur, classes primitives, génériques spécialisés) pour des gains de performance.
+    ! indiquant que le type ne peut pas etre null
+    ? indiquant que le type peut etre null
+
+Peut être décoreller de Valhalla.<br>
+Mais avec, int et Integer! seraient presque identiques.
 
 ---
 
 ## Références
 
-Intérêt: accéder rapidement aux ressources officielles, spécifications et état des JEPs.
-
-- OpenJDK Project Amber: https://openjdk.org/projects/amber/
 - OpenJDK Project Valhalla: https://openjdk.org/projects/valhalla/
-- OpenJDK Project Leyden: https://openjdk.org/projects/leyden/
-- Design notes (Amber): https://openjdk.org/projects/amber/design-notes
-- JDK JEP Index: https://openjdk.org/jeps/0
+- https://youtu.be/1dY57CDxR14?t=1875
+- https://www.youtube.com/watch?v=6C1RaVwpCNc
 
 ---
 
-## Projet Leyden — aperçu
+## Projet Leyden
 
-Intérêt: réduire le temps de démarrage, l’empreinte mémoire et améliorer la prévisibilité via build-time/static images.
-
-Le Projet Leyden vise à apporter des mécanismes d’optimisation en amont (build‑time) et des images statiques pour Java, afin d’améliorer le démarrage, réduire le RSS, et stabiliser les performances dans les environnements cloud/serverless.
+Le but principal de ce projet est d'améliorer le temps de démarrage, le temps pour atteindre le pic de performance (startup/warmup) ainsi que l'empreinte mémoire.
 
 ---
 
-## Concepts clés (Leyden)
+## Concepts clés
 
-Intérêt: poser les notions pour comprendre l’approche et ses compromis.
-
-- AOT/Build-time initialisation: déplacer du travail du runtime vers le build.
-- Images statiques natives: générer un binaire autonome (sans JIT) pour démarrage ultra‑rapide.
-- Fermeture du monde (closed-world assumptions): contraintes pour l’analyse statique (réflexion, proxies).
-- Profil « cloud-friendly »: empreinte mémoire réduite, démarrage prévisible, cold starts améliorés.
-
----
-
-## JEPs (Leyden) — repères par version
-
-Intérêt: repérer les jalons dans les JDK récents; vérifiez l’index JEP pour l’état exact.
-
-- Java 21–23: travaux autour de l’AOT, CDS, et images statiques expérimentales.
-- JEP 447 (Preview) — Créer des images statiques de programmes Java (exemple de jalon lié; à vérifier selon l’index).
-- Suivre: https://openjdk.org/projects/leyden/ et https://openjdk.org/jeps/0 (mots‑clés: Leyden, static images, AOT, CDS).
-
-Note: la numérotation exacte et l’état des JEP Leyden évoluent; privilégier l’index JEP.
+- JEP 483/514: Ahead-of-Time Class Loading & Linking
+    création d'un cache contenant les classes chargées et liées, prêtes à être utiliser par le classloader.
+- JEP 515: Ahead-of-Time Method Profiling
+    améliorer le warmup en analysant l'utilisation des méthodes lors de la création du cache, facilitant le travail du JIT et sa rapidité à intervenir.
+- JEP 516: Ahead-of-Time Object Caching with Any GC
+    améliorer le cache afin de le rendre compatible est les GC low-latency (ZGC, Shenandoah)
+méliorés.
 
 ---
 
-## Exemple (indicatif)
+## Exemple
 
-Intérêt: illustrer la création d’une image statique (syntaxe et outils susceptibles d’évoluer).
+#### 1ère version
 
 ```bash
-# Exemple indicatif; reportez-vous à la JEP et à la doc d’outils pour la syntaxe exacte
-# Compilation
-javac -d out src/main/java/com/example/App.java
-# Génération d’une image statique (commande sujette à changement selon JEP/outils)
-javac -static-image -cp out com.example.App -o app
+# création du fichier de configuration
+java -XX:AOTMode=record -XX:AOTConfiguration=app.aotconf -cp app.jar com.example.App ...
+# création du cache
+java -XX:AOTMode=create -XX:AOTConfiguration=app.aotconf -XX:AOTCache=app.aot -cp app.jar com.example.App ...
+# exécute l'application avec le cache
+java -XX:AOTCache=app.aot -cp app.jar com.example.App ...
+```
+---
+
+#### 2ème version simplifié
+```bash
+# création du cache
+java -XX:AOTCacheOutput=app.aot -cp app.jar com.example.App ...
+# exécute l'application avec le cache
+java -XX:AOTCache=app.aot -cp app.jar com.example.App ...
 ```
 
----
-
-## Où s’insère Leyden vs Amber/Valhalla ?
-
-Intérêt: positionner Leyden par rapport aux autres projets OpenJDK.
-
-- Amber: expressivité du langage et modélisation.
-- Valhalla: modèle de types et représentation mémoire pour perfs.
-- Leyden: packaging/optimisation build‑time et images statiques pour démarrage/empreinte.
+Sur un projet comme le PetClinic de Spring, le temps de démarrage a été amélioré de 42% (4.5s -> 2.6s), <br>
+le fichier de cache faisant 130Mo (21,000 classes).
 
 ---
 
-## Projet Loom — aperçu
+
+## Références
+
+- https://openjdk.org/projects/leyden/
+- https://www.youtube.com/watch?v=Oo96adJirPw
+
+---
+## Projet Loom
 
 Intérêt: simplifier la concurrence en offrant des threads légers (virtual threads) à coût réduit, sans changer le modèle de programmation.
 
@@ -767,17 +787,6 @@ String fetchProfile(String userId) throws InterruptedException {
 
 ---
 
-## Où s’insère Loom vs Amber/Valhalla/Leyden ?
-
-Intérêt: positionner Loom par rapport aux autres projets OpenJDK.
-
-- Amber: expressivité du langage et modélisation.
-- Valhalla: modèle de types et représentation mémoire pour perfs.
-- Leyden: packaging/optimisation build‑time et images statiques.
-- Loom: concurrence simplifiée via virtual threads, structured concurrency et scoped values.
-
----
-
 ## Références (Loom)
 
 Intérêt: accéder rapidement aux ressources officielles.
@@ -786,6 +795,7 @@ Intérêt: accéder rapidement aux ressources officielles.
 - JDK JEP Index: https://openjdk.org/jeps/0
 
 ---
+          è é ô ê è à
 
 ## Projet Lilliput — aperçu
 
