@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Projet Amber — Présentation</title>
+  <title>Java Evolution</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
     .remark-slide-content { font-size: 28px; }
@@ -13,66 +13,132 @@
 </head>
 <body>
 <textarea id="source" style="display:none;">
-class: center, middle
 
-# Résumé du Projet Amber (Java)
+# Projets JDK
 
-Intérêt: cadrer l’objectif du projet et pourquoi il accélère l’évolution du langage.
+- Amber
+- Valhalla
+- Leyden
+- Loom
+- Lilliput
+- Panama
+- Babylon
+- ...
 
-Le Projet Amber est une initiative de l’OpenJDK visant à accélérer l’évolution du langage Java avec des fonctionnalités concises et expressives.
-
----
-
-## Périmètre
-
-Intérêt: clarifier ce qui relève d’Amber (syntaxe, modélisation) vs. autres projets (Loom, Panama).
-
-Important: Project Amber ne couvre pas la concurrence bas niveau (Loom) ni l’interopérabilité native (Panama). Il se concentre sur la syntaxe et la modélisation des données.
 
 ---
 
-## Principales fonctionnalités
+## Projet Amber
 
-Intérêt: vision d’ensemble des nouveautés majeures pour naviguer dans la suite des pages.
-
-- var (inférence de type locale) — JEP 286 (Java 10)
-- Text Blocks — JEP 355/378 (Java 15)
-- Switch Expressions — JEP 325/354/361 (Java 14)
-- Pattern Matching pour `instanceof` — JEP 305/375/394 (Java 16)
-- Records — JEP 359/384/395 (Java 16)
-- Sealed Classes — JEP 360/397/409 (Java 17)
-- Pattern Matching pour `switch` — JEP 406/420/433/441 (Java 21)
-- Record Patterns — JEP 405/432/440 (Java 21)
-- String Templates — JEP 430/459/465 (preview)
-- Unnamed Patterns/Variables — JEP 443/456 (preview)
+Son objectif est d'explorer et d'incuber des fonctionnalités Java plus petites, axées sur la productivité du développeur, <br>
+avec moins de verbosité, une modélisation de données claire (records, sealed) et une logique de contrôle sûre et expressive (switch, patterns)
 
 ---
 
-## Exemples: var, text blocks
+## fonctionnalités disponibles
 
-Intérêt: écrire moins de code répétitif (var) et manipuler des chaînes multi‑lignes propres (text blocks).
+- Local-Variable Type Inference (var) — JEP 286 (Java 10)
+- Local-Variable Syntax for Lambda Parameters — JEP 323 (Java 11)
+- Switch Expressions — JEP 361 (Java 14)
+- Text Blocks — JEP 378 (Java 15)
+- Pattern Matching for instanceof — JEP 394 (Java 16)
+- Records — JEP 395 (Java 16)
+- Sealed Classes — JEP 409 (Java 17)
+- Record Patterns — 440 (Java 21)
+- Pattern Matching for switch — JEP 441 (Java 21)
+- Unnamed Variables and Patterns — JEP 456 (Java 22)
+- Launch Multi-File Source-Code Programs — JEP 458 (Java 22)
 
-JEPs (par version): Java 10 — 286 (var); Java 15 — 355/378 (Text Blocks)
+---
 
+## fonctionnalités en cours de développement
+
+- Primitive Types in Patterns, instanceof, and switch — JEP 507 (third Preview - Java 25)
+- Derived Record Creation — JEP 468 (Preview)
+
+
+- Module Import Declarations — JEP 511 (finalizing)
+- Compact Source Files and Instance Main Methods — JEP 512 (finalizing)
+- Flexible Constructor Bodies — JEP 513 (finalizing)
+
+---
+
+## Local-Variable Type Inference (var)
+### JEP 286 (Java 10)
+
+Améliorez le langage Java pour étendre l’inférence de type aux déclarations de variables locales avec des initialiseurs.
+
+---
+
+**Avant Amber:**
+```java
+List<String> list = List.of("a", "b");
+```
+
+**Avec Amber:**
 ```java
 var list = List.of("a", "b");
-
-String json = """
-{
-  "name": "Amber",
-  "active": true
-}
-""";
 ```
 
 ---
 
-## Switch expressions
+## Local-Variable Syntax for Lambda Parameters
+### JEP 323 (Java 11)
 
-Intérêt: rendre les branches exhaustives, exprimer des valeurs et réduire le boilerplate des instructions conditionnelles.
+Autoriser l'utilisation de var lors de la déclaration des paramètres formels des expressions lambda implicitement typées.
 
-JEPs (par version): Java 12 — 325; Java 13 — 354; Java 14 — 361
+---
+    **Avant Amber:**
+```java
+// types explicites
+BiFunction<String, String, String> concat = (String s1, String s2) -> s1 + s2;
 
+// types implicites (inférés)
+BiFunction<String, String, String> concat2 = (s1, s2) -> s1 + s2;
+```
+
+**Avec Amber:**
+```java
+// Maintenant possible : utiliser var pour tous les paramètres
+BiFunction<String, String, String> concat = (var s1, var s2) -> s1 + s2;
+
+// L'avantage principal : pouvoir ajouter des annotations
+BiFunction<String, String, String> concat2 = (@NonNull var s1, @Nullable var s2) -> s1 + (s2 != null ? s2 : "");
+```
+
+---
+
+## Switch Expressions
+### JEP 361 (Java 14)
+
+Étendre switch afin qu'il puisse être utilisé comme instruction ou expression.
+
+Les 2 formes pouvant utiliser les definitions de case <br>
+    (case: ... : label ou case ... -> label)
+
+Il y a aussi une nouvelle instruction pour retourner une valeur avec une expression (yield)
+
+---
+
+**Avant Amber: (instruction)**
+```java
+int days;
+switch (month) {
+  case JAN:
+  case MAR:
+  case MAY:
+    days = 31;
+    break;
+  case APR:
+    days = 30;
+    break;
+  default:
+    days = 28;
+    break;
+}
+```
+---
+**Avec Amber: (expression)**
 ```java
 int days = switch (month) {
   case JAN, MAR, MAY -> 31;
@@ -81,44 +147,223 @@ int days = switch (month) {
 };
 ```
 
+```java
+int days = switch (month) {
+  case JAN:
+  case MAR:
+  case MAY:
+    yield 31;
+  case APR:
+    yield 30;
+  default:
+    yield 28;
+};
+```
+
 ---
 
-## Pattern matching, records, sealed
+## Text Blocks
+### JEP 378 (Java 15)
 
-Intérêt: mieux modéliser le domaine (records), contrôler l’héritage (sealed) et simplifier le dispatch (pattern matching).
+Ajoutez des blocs de texte au langage Java. <br>
+Un bloc de texte est une chaîne littérale multiligne qui évite la plupart des séquences d'échappement, <br>
+formate automatiquement la chaîne de manière prévisible et permet au développeur de contrôler le formatage lorsqu'il le souhaite.
 
-JEPs (par version):
-- Records: Java 14 — 359; Java 15 — 384; Java 16 — 395
-- Sealed Classes: Java 15 — 360; Java 16 — 397; Java 17 — 409
+---
 
+**Avant Amber:**
 ```java
-sealed interface Shape permits Circle, Rectangle {}
-record Circle(double r) implements Shape {}
-record Rectangle(double w, double h) implements Shape {}
+String json = "{\n" +
+              "  \"name\": \"Amber\",\n" +
+              "  \"active\": true\n" +
+              "}";
+```
 
-static double area(Shape s) {
-  return switch (s) {
-    case Circle c -> Math.PI * c.r() * c.r();
-    case Rectangle(var w, var h) -> w * h;
-  };
+**Avec Amber:**
+```java
+String json = """
+             {
+               "name": "Amber",
+               "active": true
+             }
+""";
+```
+
+---
+
+## Pattern Matching for instanceof
+### JEP 394 (Java 16)
+
+Ajout du pattern matching pour instanceof. <br>
+Le pattern matching permet d'exprimer la logique courante d'un programme, <br>
+notamment l'extraction conditionnelle de composants à partir d'objets, de manière plus concise et plus sûre.
+
+---
+
+**Avant Amber:**
+```java
+if (o instanceof String) {
+  String s = (String) o;
+  System.out.println(s.length());
+}
+```
+
+**Avec Amber:**
+```java
+if (o instanceof String s) {
+  System.out.println(s.length());
 }
 ```
 
 ---
 
-## Pattern matching pour instanceof et switch
+## Records
+### JEP 395 (Java 16)
 
-Intérêt: écrire des tests de type et des choix de contrôle plus sûrs et plus concis, en évitant les casts et les erreurs.
+Ajout des record, ce sont des classes agissant comme des supports transparents pour des données immuables. <br>
+Les records peuvent être considérés comme des tuples.
 
-JEPs (par version):
-- instanceof: Java 10 — 305; Java 14 — 375; Java 16 — 394
-- switch: Java 17 — 406; Java 18 — 420; Java 19 — 433; Java 21 — 441
+---
 
+**Avant Amber:**
 ```java
-if (o instanceof String s) {
-  System.out.println(s.length());
+class Point {
+    private final int x;
+    private final int y;
+
+    Point(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    int x() { return x; }
+    int y() { return y; }
+
+    public boolean equals(Object o) { ... }
+    public int hashCode() { ... }
+    public String toString() { ... }
+}
+```
+**Avec Amber:**
+```java
+record Point(int x, int y) {}
+```
+---
+
+## Sealed Classes
+### JEP 409 (Java 17)
+
+Ajout des classes et interfaces scellées. <br>
+Ces classes et interfaces limitent les autres classes ou interfaces pouvant les étendre ou les implémenter.
+
+---
+
+**Avant Amber:**
+```java
+interface Shape {}
+
+class Circle implements Shape {}
+
+class Rectangle implements Shape {}
+
+static double area(Shape s) {
+  return switch (s) {
+    case Circle c -> ...;
+    case Rectangle r -> ...;
+    case default -> throw new IllegalArgumentException();
+  };
+
+}
+```
+---
+**Avec Amber:**
+```java
+sealed interface Shape permits Circle, Rectangle {}
+
+record Circle(double r) implements Shape {}
+
+record Rectangle(double w, double h) implements Shape {}
+
+static double area(Shape s) {
+  return switch (s) {
+    case Circle c -> ...;
+    case Rectangle r -> ...;
+  };
+}
+```
+---
+
+## Record Patterns
+### JEP 440 (Java 21)
+
+Ajout des record patterns permettant d'extraire les champs d'un record directement dans les conditions. <br>
+Les record et les types permettant le pattern matching peuvent être imbriqués.
+
+---
+
+**Avant Amber:**
+```java
+record Point(int x, int y) {}
+
+if (p instanceof Point) {
+  Point point = (Point) p;
+  int x = point.x();
+  int y = point.y();
+  // utiliser x et y...
+}
+```
+
+**Avec Amber:**
+```java
+record Point(int x, int y) {}
+
+if (p instanceof Point(int x, int y)) {
+  // utiliser x et y...
+}
+```
+---
+
+**Avec Amber:**
+```java
+record Point(int x, int y) {}
+enum Color { RED, GREEN, BLUE }
+record ColoredPoint(Point p, Color c) {}
+record Rectangle(ColoredPoint upperLeft, ColoredPoint lowerRight) {}
+
+static void printUpperLeftColoredPoint(Rectangle r) {
+    if (r instanceof Rectangle(ColoredPoint ul, ColoredPoint lr)) {
+         System.out.println(ul.c());
+    }
 }
 
+static void printXCoordOfUpperLeftPointWithPatterns(Rectangle r) {
+    if (r instanceof Rectangle(ColoredPoint(Point(var x, var y), var c), var lr)) {
+        System.out.println("Upper-left corner: " + x);
+    }
+}
+```
+
+---
+
+## Pattern Matching for switch
+### JEP 441 (Java 21)
+Ajouter le pattern patching pour le switch permet de tester une expression par rapport à plusieurs pattern, <br>
+chacun avec une action spécifique, afin d'exprimer des requêtes complexes de manière concise et sécurisée.
+
+---
+**Avant Amber:**
+```java
+String d;
+if (o instanceof Integer i) {
+  d = "int=" + i;
+} else if (o instanceof String s) {
+  d = s;
+} else {
+  d = "?";
+}
+```
+**Avec Amber:**
+```java
 String d = switch (o) {
   case Integer i -> "int=" + i;
   case String s -> s;
@@ -128,50 +373,194 @@ String d = switch (o) {
 
 ---
 
-## Record patterns
+## Unnamed Variables and Patterns
+### JEP 456 (Java 22)
 
-Intérêt: déstructurer des enregistrements directement dans les conditions pour extraire les champs de façon sûre.
+Permet de définir des variables et des patterns sans nom, que l'on peut utilise lorsque des déclarations de variables ou des patterns sont requis mais jamais utilisés.
 
-JEPs (par version): Java 19 — 405; Java 20 — 432; Java 21 — 440
+---
+**Avant Amber:**
+```java
+static int count(Iterable<Order> orders) {
+    int total = 0;
+    for (Order order : orders)
+        total++;
+    return total;
+}
+
+Ball ball = ...
+switch (ball) {
+    case RedBall   red   -> process(ball);
+    case BlueBall  blue  -> process(ball);
+    case GreenBall green -> stopProcessing();
+}
+```
+---
+**Avec Amber:**
+```java
+static int count(Iterable<Order> orders) {
+    int total = 0;
+    for (Order order : _)
+        total++;
+    return total;
+}
+
+Ball ball = ...
+switch (ball) {
+    case RedBall _   -> process(ball);
+    case BlueBall _  -> process(ball);
+    case GreenBall _ -> stopProcessing();
+}
+```
+---
+
+## Launch Multi-File Source-Code Programs
+### JEP 458 (Java 22)
+
+Permet d'exécuter un programme java composé de plusieurs fichiers source, sans compilation préalable.
+
+---
+```java
+// Prog.java
+public class Prog {
+class Prog {
+    public static void main(String[] args) { pkg.Helper.run(); }
+}
+// pkg/Helper.java
+package pkg;
+class Helper {
+    static void run() { System.out.println("Hello!"); }
+}
+
+$ java Prog.java
+```
+
+---
+
+## Primitive Types in Patterns, instanceof, and switch
+### JEP 507 (third Preview)
+
+Permet l'utilisation des types primitifs dans les patterns, instanceof et switch.
 
 ```java
-if (p instanceof Point(int x, int y)) {
-  // ...
+switch (x.getYearlyFlights()) {
+    case 0 -> ...;
+    case 1 -> ...;
+    case 2 -> issueDiscount();
+    case int i when i >= 100 -> issueGoldCard();
+    case int i -> ... appropriate action when i > 2 && i < 100 ...
+}
+```
+---
+
+## Derived Record Creation
+### JEP 468 (Preview)
+
+Permet de créer une nouvelle instance d'un record en se basant sur une instance existante, en ne modifiant que ce la partie souhaitée.
+
+```java
+e with { ... }
+
+record Point(int x, int y) {}
+Point nextLoc = oldLoc with { x = 0; };
+
+record Marker(Point loc, String label, Icon icon) { }
+Marker m = new Marker(new Point(...), ..., ...);
+
+Marker scaled = m with { loc = loc with { x *= 2; y *= 2; z *= 2; }};
+```
+---
+
+## Module Import Declarations
+### JEP 511 (finalizing - Java 25)
+
+Permet l'importation de module et de tous les packages inclus.
+Les modules existent depuis java 9.
+
+---
+**Avant Amber:**
+```java
+import java.io.*
+import java.util.*
+import java.lang.*
+```
+**Avec Amber:**
+```java
+import module java.base
+```
+---
+
+## Compact Source Files and Instance Main Methods
+### JEP 512 (finalizing)
+
+Permet de s'affranchir de la plupart des contraintes de syntaxe pour un programme mono-classe.
+Particulierement utile pour le 1er contact avec le langage Java.
+---
+**Avant Amber:**
+```java
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+    }
+}
+```
+**Avec Amber:**
+```java
+void main() {
+    IO.println("Hello, World!");
+}
+```
+---
+
+---
+
+## Flexible Constructor Bodies
+### JEP 513 (finalizing - Java 25)
+
+Permet d'écrire des instructions avant tout appel a d'autres constructeurs, super(...) ou this(...).
+
+**Avant Amber:**
+```java
+class Person {
+    int age;
+    Person(..., int age) {
+        if (age < 0)
+            throw new IllegalArgumentException(...);
+        ...
+    }
+}
+
+class Employee extends Person {
+    Employee(..., int age) {
+        super(..., age); // Potentially unnecessary work
+        if (age < 18  || age > 67) throw new IllegalArgumentException(...);
+    }
+}
+```
+**Avec Amber:**
+```java
+class Person {
+    int age;
+    Person(..., int age) {
+        if (age < 0)
+            throw new IllegalArgumentException(...);
+        ...
+    }
+}
+
+class Employee extends Person {
+    Employee(..., int age) {
+        if (age < 18  || age > 67) throw new IllegalArgumentException(...); // Now fails fast!
+        super(..., age);
+    }
 }
 ```
 
 ---
 
-## String templates (preview)
-
-Intérêt: interpoler des valeurs dans des chaînes de manière lisible et potentiellement plus sûre (moteurs de templates).
-
-JEPs (par version): Java 21 — 430; Java 22 — 459; Java 23 — 465 (preview)
-
-```java
-String msg = STR."Hello, \{user.name()}!";
-```
-
----
-
-## Bénéfices clés
-
-Intérêt: synthèse finale des gains de productivité, de sûreté et de lisibilité apportés par Amber.
-
-- Moins de verbosité
-- Modélisation de données claire (records, sealed)
-- Logique de contrôle sûre et expressive (switch, patterns)
-- Chaînes multi‑lignes lisibles (text blocks)
-
----
-
 ## Références
 
-Intérêt: accéder rapidement aux ressources officielles, spécifications et état des JEPs.
-
 - OpenJDK Project Amber: https://openjdk.org/projects/amber/
-- Design notes (JEPs): https://openjdk.org/projects/amber/design-notes
-- JDK JEP Index: https://openjdk.org/jeps/0
 
 ---
 
