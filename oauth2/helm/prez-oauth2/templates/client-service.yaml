@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-service
+  labels:
+    app: client-service
+spec:
+  replicas: {{ .Values.clientService.replicaCount }}
+  selector:
+    matchLabels:
+      app: client-service
+  template:
+    metadata:
+      labels:
+        app: client-service
+    spec:
+      containers:
+        - name: client-service
+          image: "{{ .Values.image.repository }}/{{ .Values.clientService.image.name }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI
+              value: "http://keycloak:{{ .Values.keycloak.port }}/realms/demo"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: client-service
+spec:
+  type: {{ .Values.clientService.service.type }}
+  ports:
+    - port: {{ .Values.clientService.service.port }}
+      targetPort: 8082
+      protocol: TCP
+      name: http
+  selector:
+    app: client-service

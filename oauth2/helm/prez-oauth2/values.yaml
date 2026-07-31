@@ -1,0 +1,41 @@
+# Default values for prez-oauth2.
+
+image:
+  repository: prez-oauth2
+  pullPolicy: IfNotPresent
+  # Overridden by specific service tags if needed
+  tag: "latest"
+
+# Configuration pour Keycloak tournant dans Docker
+keycloak:
+  host: "172.17.0.1" # IP de l'hôte (passerelle docker par défaut sur Linux)
+  port: 8080
+
+resourceServer:
+  replicaCount: 1
+  image:
+    name: resource-server
+  service:
+    type: ClusterIP
+    port: 8081
+
+clientService:
+  replicaCount: 1
+  image:
+    name: client-service
+  service:
+    type: ClusterIP
+    port: 8082
+
+frontendService:
+  replicaCount: 1
+  image:
+    name: frontend-service
+  service:
+    type: ClusterIP
+    port: 8083
+
+ingress:
+  enabled: false
+  className: "nginx"
+  host: "prez-oauth2.local"

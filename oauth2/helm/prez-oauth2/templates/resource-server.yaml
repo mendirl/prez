@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-server
+  labels:
+    app: resource-server
+spec:
+  replicas: {{ .Values.resourceServer.replicaCount }}
+  selector:
+    matchLabels:
+      app: resource-server
+  template:
+    metadata:
+      labels:
+        app: resource-server
+    spec:
+      containers:
+        - name: resource-server
+          image: "{{ .Values.image.repository }}/{{ .Values.resourceServer.image.name }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+              value: "http://keycloak:{{ .Values.keycloak.port }}/realms/demo"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resource-server
+spec:
+  type: {{ .Values.resourceServer.service.type }}
+  ports:
+    - port: {{ .Values.resourceServer.service.port }}
+      targetPort: 8081
+      protocol: TCP
+      name: http
+  selector:
+    app: resource-server

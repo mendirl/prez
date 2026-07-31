@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>OAuth2 / OIDC – Démo Authorization Code</title>
+    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .hero { background: #f5f7fa; padding: 2rem; border-radius: 8px; }
+        a.btn { display: inline-block; background: #2563eb; color: white; padding: .6rem 1.2rem;
+                border-radius: 6px; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="hero">
+    <h1>Démo OAuth2 / OIDC — Authorization Code Flow</h1>
+    <p>Frontend Spring Boot + Thymeleaf + HTMX, sécurisé via Keycloak.</p>
+    <p>Cliquez sur le bouton pour démarrer le flow <code>authorization_code</code> auprès de Keycloak.</p>
+    <a class="btn" th:href="@{/oauth2/authorization/keycloak}">Se connecter avec Keycloak</a>
+</div>
+</body>
+</html>

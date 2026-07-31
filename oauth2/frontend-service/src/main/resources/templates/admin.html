@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Administration</title>
+    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: #fef3c7; border: 1px solid #f59e0b; padding: 1rem 1.5rem; border-radius: 8px; }
+        button { background: #d97706; color: white; border: none; padding: .5rem 1rem;
+                 border-radius: 6px; cursor: pointer; }
+        a { color: #2563eb; }
+    </style>
+</head>
+<body>
+<h1>🛡️ Espace administrateur</h1>
+<p>Bienvenue <strong th:text="${user.preferredUsername}"></strong>, vous avez le rôle <code>ADMIN</code>.</p>
+<p><a th:href="@{/home}">← Retour à l'accueil</a></p>
+
+<button hx-get="/fragments/admin" hx-target="#admin-box" hx-swap="innerHTML">
+    Appeler /api/admin/dashboard
+</button>
+<div id="admin-box" class="card" style="margin-top:1rem;">
+    <em>Cliquez pour appeler l'API protégée par le rôle ADMIN.</em>
+</div>
+</body>
+</html>

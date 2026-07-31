@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="card">
+    <p th:if="${endpoint}" style="margin:.2rem 0 .6rem;">
+        <small><code th:text="${endpoint}"></code></small>
+    </p>
+    <div th:if="${error}">
+        <strong style="color:#dc2626">Erreur :</strong>
+        <span th:text="${error}"></span>
+    </div>
+    <div th:if="${response}">
+        <p th:if="${response['message']}"><strong>Message :</strong> <span th:text="${response['message']}"></span></p>
+        <p th:if="${response['user']}"><strong>Utilisateur :</strong> <span th:text="${response['user']}"></span></p>
+        <p th:if="${response['subject']}"><strong>Subject (sub) :</strong> <span th:text="${response['subject']}"></span></p>
+        <p th:if="${response['preferred_username']}"><strong>Username :</strong>
+            <span th:text="${response['preferred_username']}"></span></p>
+        <p th:if="${response['scope']}"><strong>Scope :</strong> <span th:text="${response['scope']}"></span></p>
+        <p th:if="${response['roles']}"><strong>Rôles :</strong>
+            <span th:each="r, it : ${response['roles']}">
+                <code th:text="${r}"></code><span th:if="${!it.last}">, </span>
+            </span>
+        </p>
+        <p th:if="${response['secret']}"><strong>🔒 Secret admin :</strong>
+            <span th:text="${response['secret']}"></span></p>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Accueil – Utilisateur connecté</title>
+    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        header { display: flex; justify-content: space-between; align-items: center; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+        .card { background: #f5f7fa; padding: 1rem 1.5rem; border-radius: 8px; min-height: 120px; }
+        .card.admin { background: #fef3c7; border: 1px solid #f59e0b; }
+        .card.user  { background: #dcfce7; border: 1px solid #22c55e; }
+        button { background: #2563eb; color: white; border: none; padding: .5rem 1rem;
+                 border-radius: 6px; cursor: pointer; }
+        button.admin { background: #d97706; }
+        button.user  { background: #16a34a; }
+        pre { background: #1f2937; color: #f3f4f6; padding: 1rem; border-radius: 6px;
+              overflow-x: auto; font-size: .8rem; }
+        form { display: inline; }
+        .logout { background: #ef4444; }
+        .badge { display: inline-block; padding: .15rem .55rem; border-radius: 999px;
+                 font-size: .75rem; margin-left: .3rem; }
+        .badge-admin { background: #f59e0b; color: white; }
+        .badge-user  { background: #22c55e; color: white; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>
+        Bonjour <span th:text="${user.preferredUsername}">user</span> 👋
+        <span sec:authorize="hasRole('ADMIN')" class="badge badge-admin">ADMIN</span>
+        <span sec:authorize="hasRole('USER') and !hasRole('ADMIN')" class="badge badge-user">USER</span>
+    </h1>
+    <form th:action="@{/logout}" method="post">
+        <button class="logout" type="submit">Déconnexion</button>
+    </form>
+</header>
+
+<p>Vous êtes authentifié via le flow <strong>Authorization Code</strong> (OIDC) sur Keycloak.</p>
+
+<h3>Identité &amp; rôles</h3>
+<ul>
+    <li><strong>sub</strong> : <span th:text="${claims['sub']}"></span></li>
+    <li><strong>preferred_username</strong> : <span th:text="${claims['preferred_username']}"></span></li>
+    <li><strong>email</strong> : <span th:text="${claims['email']}"></span></li>
+    <li><strong>authorities</strong> :
+        <span th:each="a, it : ${authorities}">
+            <code th:text="${a.authority}"></code><span th:if="${!it.last}">, </span>
+        </span>
+    </li>
+</ul>
+
+<div class="grid">
+    <!-- Section visible par tout utilisateur connecté -->
+    <div sec:authorize="hasRole('USER')">
+        <h3>👤 Espace utilisateur</h3>
+        <button class="user"
+                hx-get="/fragments/user" hx-target="#user-box" hx-swap="innerHTML">
+            Appeler /api/user/profile
+        </button>
+        <div id="user-box" class="card user">
+            <em>Disponible à tous les rôles <strong>USER</strong> et <strong>ADMIN</strong>.</em>
+        </div>
+    </div>
+
+    <!-- Section visible uniquement par les ADMIN -->
+    <div sec:authorize="hasRole('ADMIN')">
+        <h3>🛡️ Espace administrateur</h3>
+        <button class="admin"
+                hx-get="/fragments/admin" hx-target="#admin-box" hx-swap="innerHTML">
+            Appeler /api/admin/dashboard
+        </button>
+        <div id="admin-box" class="card admin">
+            <em>Réservé aux utilisateurs ayant le rôle <strong>ADMIN</strong>.</em>
+        </div>
+        <p style="margin-top:.6rem;">
+            <a th:href="@{/admin}">→ Page d'administration dédiée</a>
+        </p>
+    </div>
+
+    <!-- Message si l'utilisateur n'a PAS le rôle ADMIN -->
+    <div sec:authorize="!hasRole('ADMIN')">
+        <h3>🛡️ Espace administrateur</h3>
+        <div class="card">
+            <em>🚫 Accès refusé : votre compte n'a pas le rôle <strong>ADMIN</strong>.</em>
+        </div>
+    </div>
+
+    <div>
+        <h3>Access Token</h3>
+        <button hx-get="/fragments/token" hx-target="#token-box" hx-swap="innerHTML">
+            Afficher l'access token
+        </button>
+        <div id="token-box" class="card">
+            <em>Cliquez pour récupérer le token via HTMX.</em>
+        </div>
+    </div>
+
+    <div>
+        <h3>Endpoint générique</h3>
+        <button hx-get="/fragments/message" hx-target="#message-box" hx-swap="innerHTML">
+            Appeler /api/message
+        </button>
+        <div id="message-box" class="card">
+            <em>Disponible à tous les utilisateurs authentifiés.</em>
+        </div>
+    </div>
+</div>
+</body>
+</html>

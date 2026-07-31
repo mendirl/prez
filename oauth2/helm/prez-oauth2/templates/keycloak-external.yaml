@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  ports:
+    - protocol: TCP
+      port: {{ .Values.keycloak.port }}
+      targetPort: {{ .Values.keycloak.port }}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: keycloak
+subsets:
+  - addresses:
+      - ip: {{ .Values.keycloak.host }}
+    ports:
+      - port: {{ .Values.keycloak.port }}

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-service
+  labels:
+    app: frontend-service
+spec:
+  replicas: {{ .Values.frontendService.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend-service
+  template:
+    metadata:
+      labels:
+        app: frontend-service
+    spec:
+      containers:
+        - name: frontend-service
+          image: "{{ .Values.image.repository }}/{{ .Values.frontendService.image.name }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8083
+              protocol: TCP
+          env:
+            - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI
+              value: "http://keycloak:{{ .Values.keycloak.port }}/realms/demo"
+            - name: RESOURCE_SERVER_BASE_URL
+              value: "http://resource-server:{{ .Values.resourceServer.service.port }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  type: {{ .Values.frontendService.service.type }}
+  ports:
+    - port: {{ .Values.frontendService.service.port }}
+      targetPort: 8083
+      protocol: TCP
+      name: http
+  selector:
+    app: frontend-service
