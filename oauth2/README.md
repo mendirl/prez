@@ -1,6 +1,6 @@
 # Démonstration OAuth2 / OIDC avec Keycloak, Spring Boot 4 & HTMX
 
-Projet pédagogique multi-modules illustrant **deux flows OAuth2** et la **gestion fine des rôles**
+Projet pédagogique multi-modules illustrant **trois flows OAuth2** et la **gestion fine des rôles**
 sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **JSpecify**
 (null-safety vérifiée à la compilation via NullAway/ErrorProne), **Thymeleaf + HTMX**.
 
@@ -8,6 +8,7 @@ sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **J
 |------|--------|--------|-------------|
 | **Client Credentials** (M2M) | service ↔ service | `client-service` → `resource-server` | API consommée par un backend sans utilisateur |
 | **Authorization Code + PKCE + OIDC** | utilisateur ↔ navigateur | `frontend-service` → `resource-server` | Login web, rôles, UI conditionnelle |
+| **OAuth 2.0 Token Exchange** (RFC 8693) | utilisateur → `frontend-service` → `client-service` → `resource-server` | `frontend-service` transmet le token utilisateur à `client-service`, qui l'échange auprès de Keycloak | Un service intermédiaire (« clientm ») agit au nom de l'utilisateur, résultat différent suivant ses rôles |
 
 ---
 
@@ -32,6 +33,22 @@ sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **J
                            │      :8081      │
                            │ JWT JWKS + RBAC │
                            └─────────────────┘
+```
+
+Flow **Token Exchange** (utilisateur → frontend → clientm → resource) :
+
+```
+utilisateur ──login──► frontend-service ──Bearer (token utilisateur)──► client-service (« clientm »)
+                                                                              │
+                                                            token-exchange    │  POST /token (grant_type=
+                                                            auprès de Keycloak│  urn:ietf:params:oauth:grant-type:token-exchange)
+                                                                              ▼
+                                                                         Keycloak :8080
+                                                                              │
+                                                              nouveau token (même utilisateur, azp=demo-client)
+                                                                              ▼
+                                                                    resource-server :8081
+                                                        (/api/admin/dashboard si ADMIN, /api/user/profile sinon)
 ```
 
 ---
@@ -147,6 +164,7 @@ Les rôles sont extraits du claim `realm_access.roles` du JWT Keycloak via un
 | Méthode | Endpoint | Description |
 |---|---|---|
 | GET | `/client/call` | Récupère un token via Client Credentials puis appelle `/api/message`. |
+| GET | `/client/call-as-user` | **Token Exchange** : échange le token utilisateur (Bearer entrant) auprès de Keycloak, puis appelle `/api/admin/dashboard` ou `/api/user/profile` selon le rôle. Nécessite un Bearer valide. |
 
 ### `frontend-service` (:8083)
 
@@ -155,7 +173,8 @@ Les rôles sont extraits du claim `realm_access.roles` du JWT Keycloak via un
 | `/`              | Page d'accueil + bouton « Se connecter avec Keycloak » |
 | `/home`          | Après login : claims, rôles, boutons HTMX |
 | `/admin`         | Page réservée `ADMIN` |
-| `/fragments/*`   | Fragments HTMX (`token`, `message`, `user`, `admin`) |
+| `/fragments/*`   | Fragments HTMX (`token`, `message`, `user`, `admin`, `clientm`) |
+| `/fragments/clientm` | Transmet le token utilisateur à `client-service` (flow Token Exchange) |
 | `/logout`        | RP-Initiated Logout (Keycloak) |
 
 ---
@@ -191,8 +210,13 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/admin/dashboard
 
 | clientId          | Type         | Flow                  | Secret            | Redirect URI |
 |-------------------|--------------|-----------------------|-------------------|--------------|
-| `demo-client`     | confidentiel | Client Credentials    | `demo-secret`     | — |
+| `demo-client`     | confidentiel | Client Credentials + Token Exchange (requester) | `demo-secret`     | — |
 | `frontend-client` | confidentiel | Authorization Code    | `frontend-secret` | `http://localhost:8083/login/oauth2/code/keycloak` |
+
+> Le client scope `demo-client-audience` (mapper d'audience) est affecté par défaut à
+> `frontend-client` : il ajoute `demo-client` dans l'`aud` du token utilisateur, ce qui
+> autorise `demo-client` (utilisé par `client-service`) à échanger ce token pour lui-même
+> via le flow Token Exchange.
 
 ---
 
@@ -223,6 +247,7 @@ Particularités Maven :
 | **Client Credentials** | Flow OAuth2 sans utilisateur, service-account du client. |
 | **Authorization Code + PKCE** | Flow standard OIDC : redirection navigateur → code → token, sécurisé par un `code_verifier`/`code_challenge` (S256). Activé côté Spring via `OAuth2AuthorizationRequestCustomizers.withPkce()` et exigé côté Keycloak via `pkce.code.challenge.method=S256`. |
 | **OIDC** | Couche d'identité sur OAuth2 : ID Token JWT décrivant l'utilisateur. |
+| **OAuth 2.0 Token Exchange (RFC 8693)** | Un client (`client-service`) échange un token reçu (émis pour un autre client) contre un nouveau token émis pour lui-même, en conservant l'utilisateur (`sub`). Activé côté Keycloak 25 via la feature preview `--features=token-exchange`, exposé côté Spring via `TokenExchangeOAuth2AuthorizedClientProvider` (grant `urn:ietf:params:oauth:grant-type:token-exchange`). |
 | **JWKS** | Le resource-server valide les JWT via la clé publique exposée par Keycloak. |
 | **`realm_access.roles`** | Rôles realm Keycloak, mappés en `ROLE_*` côté Spring. |
 | **`sec:authorize`** | Attribut Thymeleaf qui rend conditionnellement selon `hasRole(...)`. |
@@ -301,4 +326,5 @@ Options du script :
 | Login OK mais pas de badge ADMIN | Realm pas réimporté | `docker compose down -v && up -d` |
 | `401 invalid_token` sur `/api/*` | Token expiré ou mauvais issuer | Vérifier `issuer-uri` dans `application.yml` |
 | `403` sur `/api/admin/**` avec alice | Realm non importé / mapping rôles KO | Inspecter le JWT sur https://jwt.io |
+| `403` / `invalid_request` sur `/client/call-as-user` | Feature `token-exchange` non activée sur Keycloak, ou audience `demo-client` absente du token utilisateur | Vérifier `--features=token-exchange` dans `docker-compose.yml` et le client scope `demo-client-audience` sur `frontend-client` (`docker compose down -v && up -d` après modif du realm) |
 | Build cassé NullAway | Violation de nullité | Annoter `@Nullable` ou gérer le `null` explicitement |

@@ -15,9 +15,30 @@ Spring Security 6, Keycloak en Authorization Server).
 |---|---|---|---|
 | Client Credentials | `client-service` | `demo-client` (`serviceAccountsEnabled`) | `RestClient` + `OAuth2AuthorizedClientManager` |
 | Authorization Code + OIDC | `frontend-service` | `frontend-client` (`standardFlowEnabled`) | `oauth2Login`, RP-Initiated Logout, rôles depuis access token |
+| OAuth 2.0 Token Exchange (RFC 8693) | `client-service` (endpoint `/client/call-as-user`) | `demo-client` (requester) | `frontend-service` transmet le token utilisateur en Bearer à `client-service`, qui l'échange auprès de Keycloak puis appelle `resource-server` avec le nouveau token |
 
 Le `resource-server` valide les JWT via JWKS de Keycloak (`issuer-uri` dans
 `application.yml`).
+
+### Détail du flow Token Exchange
+
+- `client-service` est **à la fois** resource-server (décode le Bearer entrant via
+  `oauth2ResourceServer().jwt(...)`) et client OAuth2 (échange ce token).
+- Manager dédié `TokenExchangeOAuth2AuthorizedClientProvider` (Spring Security ≥ 6.3),
+  bean qualifié `tokenExchange` dans `client-service/config/WebClientConfig.java`. Le
+  `subjectTokenResolver` par défaut lit le token depuis l'`Authentication` courante
+  (le `JwtAuthenticationToken` du Bearer entrant) — pas besoin de le résoudre manuellement.
+- Registration `token-exchange` dans `application.yml` : `authorization-grant-type:
+  urn:ietf:params:oauth:grant-type:token-exchange`, `client-id`/`client-secret` = ceux
+  du client qui effectue l'échange (`demo-client`).
+- Côté Keycloak 25 (preview, pas encore "Standard Token Exchange" v2 de Keycloak 26.2+) :
+  activer `--features=token-exchange` sur le conteneur, et faire en sorte que le token
+  source (émis pour `frontend-client`) contienne le client requester (`demo-client`)
+  dans son `aud` — via un client scope avec un mapper `oidc-audience-mapper`
+  (`included.client.audience=demo-client`), affecté par défaut à `frontend-client`
+  (voir `keycloak/realm-demo.json`, scope `demo-client-audience`). Sans cela, Keycloak
+  refuse l'échange (l'exchange n'est autorisé que si le requester est dans l'audience
+  du subject token, ou est le même client).
 
 ## Recettes
 

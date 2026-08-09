@@ -17,10 +17,14 @@ import java.util.Map;
 @Controller
 public class HomeController {
     private final String resourceServerBaseUrl;
+    private final String clientServiceBaseUrl;
     private final RestClient restClient;
 
-    public HomeController(@Value("${resource-server.base-url}") String resourceServerBaseUrl, RestClient restClient) {
+    public HomeController(@Value("${resource-server.base-url}") String resourceServerBaseUrl,
+                          @Value("${client-service.base-url}") String clientServiceBaseUrl,
+                          RestClient restClient) {
         this.resourceServerBaseUrl = resourceServerBaseUrl;
+        this.clientServiceBaseUrl = clientServiceBaseUrl;
         this.restClient = restClient;
     }
 
@@ -73,6 +77,35 @@ public class HomeController {
     public String message(@RegisteredOAuth2AuthorizedClient("keycloak") OAuth2AuthorizedClient authorizedClient,
                           Model model) {
         callApi(authorizedClient, "/api/message", model);
+        return "fragments/message :: card";
+    }
+
+    /**
+     * Flow OAuth 2.0 Token Exchange : le token de l'utilisateur connecté est
+     * transmis à `client-service`, qui l'échange auprès de Keycloak avant
+     * d'appeler `resource-server` en son nom. Le résultat diffère donc selon
+     * les rôles de l'utilisateur (zone USER ou ADMIN).
+     */
+    @GetMapping("/fragments/clientm")
+    public String clientmFragment(@RegisteredOAuth2AuthorizedClient("keycloak") OAuth2AuthorizedClient authorizedClient,
+                                  Model model) {
+        String accessToken = authorizedClient.getAccessToken().getTokenValue();
+        String path = "/client/call-as-user";
+        try {
+            @SuppressWarnings("unchecked")
+            @Nullable Map<String, Object> response = restClient.get()
+                    .uri(clientServiceBaseUrl + path)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .body(Map.class);
+            model.addAttribute("response", response);
+            model.addAttribute("error", null);
+            model.addAttribute("endpoint", "clientm " + path + " (Token Exchange)");
+        } catch (Exception e) {
+            model.addAttribute("response", null);
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("endpoint", "clientm " + path + " (Token Exchange)");
+        }
         return "fragments/message :: card";
     }
 

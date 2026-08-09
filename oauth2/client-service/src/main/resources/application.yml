@@ -8,11 +8,24 @@ spring:
     oauth2:
       client:
         registration:
-          keycloak:
+          client-credentials:
+            provider: keycloak
             client-id: demo-client
             client-secret: demo-secret
             authorization-grant-type: client_credentials
-            scope: openid
+            scope:
+              - openid
+          token-exchange:
+            provider: keycloak
+            client-id: demo-client
+            client-secret: demo-secret
+            authorization-grant-type: urn:ietf:params:oauth:grant-type:token-exchange
         provider:
           keycloak:
             issuer-uri: http://localhost:8080/realms/demo
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/demo
+
+resource-server:
+  base-url: http://localhost:8081

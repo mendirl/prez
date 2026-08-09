@@ -48,7 +48,20 @@
         "openid",
         "profile",
         "email",
-        "roles"
+        "roles",
+        "basic"
+      ],
+      "protocolMappers": [
+        {
+          "name": "demo-client-audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "demo-client",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
       ]
     }
   ],

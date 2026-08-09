@@ -107,6 +107,18 @@
             <em>Disponible à tous les utilisateurs authentifiés.</em>
         </div>
     </div>
+
+    <div>
+        <h3>🔁 Token Exchange (via clientm)</h3>
+        <button hx-get="/fragments/clientm" hx-target="#clientm-box" hx-swap="innerHTML">
+            Appeler client-service /client/call-as-user
+        </button>
+        <div id="clientm-box" class="card">
+            <em>Le frontend transmet votre token à <code>client-service</code>, qui l'échange
+                auprès de Keycloak (flow OAuth 2.0 Token Exchange) avant d'appeler
+                <code>resource-server</code>. Le résultat dépend de votre rôle.</em>
+        </div>
+    </div>
 </div>
 </body>
 </html>

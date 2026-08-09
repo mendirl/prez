@@ -27,3 +27,6 @@ spring:
 
 resource-server:
   base-url: http://localhost:8081
+
+client-service:
+  base-url: http://localhost:8082
