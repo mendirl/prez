@@ -11,12 +11,12 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example.oauth2</groupId>
-    <artifactId>prez-oauth2</artifactId>
+    <groupId>io.mendirl.demo</groupId>
+    <artifactId>oauth2</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>prez-oauth2</name>
+    <name>oauth2</name>
     <description>Démonstration OAuth2 Client Credentials entre deux services REST</description>
 
     <subprojects>
@@ -29,25 +29,28 @@
         <java.version>25</java.version>
     </properties>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>am.ik.maven</groupId>
-                <artifactId>nullability-maven-plugin</artifactId>
-                <version>0.3.0</version>
-                <extensions>true</extensions>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>configure</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-
     <profiles>
+        <profile>
+            <id>nullability</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>am.ik.maven</groupId>
+                        <artifactId>nullability-maven-plugin</artifactId>
+                        <version>0.4.3</version>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>configure</goal>
+                                    <goal>generate-package-info</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>native</id>
             <build>
