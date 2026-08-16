@@ -9,3 +9,9 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:8080/realms/demo
+
+logging:
+  level:
+    io.mendirl.demo.resourceserver: DEBUG
+    org.springframework.security: INFO
+    org.springframework.security.oauth2: DEBUG

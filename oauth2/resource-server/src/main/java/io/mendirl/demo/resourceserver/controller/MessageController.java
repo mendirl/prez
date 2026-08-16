@@ -1,5 +1,7 @@
-package com.example.resourceserver.controller;
+package io.mendirl.demo.resourceserver.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +16,13 @@ import java.util.Map;
 @RequestMapping("/api")
 public class MessageController {
 
+    private static final Logger log = LoggerFactory.getLogger(MessageController.class);
+
     @GetMapping("/message")
     public Map<String, Object> getMessage(@AuthenticationPrincipal Jwt jwt) {
+        log.info("GET /api/message appelé par le sujet '{}' (client_id/azp={})",
+                jwt.getClaimAsString("preferred_username"),
+                jwt.getClaimAsString("azp"));
         // Utilisation d'un HashMap car Map.of(...) interdit les valeurs null
         // (certains claims comme `scope` ou `preferred_username` peuvent être absents
         // selon le client/flow OAuth2).
@@ -30,6 +37,9 @@ public class MessageController {
 
     @GetMapping("/user/profile")
     public Map<String, Object> userProfile(@AuthenticationPrincipal Jwt jwt) {
+        log.info("GET /api/user/profile appelé par '{}' avec les rôles {}",
+                jwt.getClaimAsString("preferred_username"),
+                extractRoles(jwt));
         return Map.of(
             "message", "Zone UTILISATEUR — accessible à tout utilisateur authentifié (rôle USER ou ADMIN).",
             "user", String.valueOf(jwt.getClaimAsString("preferred_username")),
@@ -39,6 +49,9 @@ public class MessageController {
 
     @GetMapping("/admin/dashboard")
     public Map<String, Object> adminDashboard(@AuthenticationPrincipal Jwt jwt) {
+        log.info("GET /api/admin/dashboard appelé par '{}' avec les rôles {}",
+                jwt.getClaimAsString("preferred_username"),
+                extractRoles(jwt));
         return Map.of(
             "message", "Zone ADMIN — données sensibles réservées aux administrateurs.",
             "user", String.valueOf(jwt.getClaimAsString("preferred_username")),
@@ -49,6 +62,7 @@ public class MessageController {
 
     @GetMapping("/public/hello")
     public Map<String, String> publicHello() {
+        log.info("GET /api/public/hello appelé (endpoint public)");
         return Map.of("message", "Endpoint public - pas besoin de token");
     }
 

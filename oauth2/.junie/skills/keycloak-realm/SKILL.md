@@ -1,3 +1,8 @@
+---
+name: keycloak-realm
+description: Modifier le realm Keycloak (`keycloak/realm-demo.json`) — rôles, utilisateurs, clients — sans casser l'import au démarrage.
+---
+
 # Skill: keycloak-realm
 
 Modifier le realm Keycloak (`keycloak/realm-demo.json`) — rôles, utilisateurs, clients —
@@ -30,7 +35,7 @@ sans casser l'import au démarrage.
       { "name": "USER",  "description": "..." }
     ]
   },
-  "clients":  [ /* demo-client, frontend-client */ ],
+  "clients":  [ /* client-service, frontend-service */ ],
   "users":    [ /* alice, bob, demo */ ]
 }
 ```
@@ -77,7 +82,7 @@ curl -s http://localhost:8080/realms/demo/.well-known/openid-configuration | jq 
 # Tester un token Client Credentials
 curl -s -X POST http://localhost:8080/realms/demo/protocol/openid-connect/token \
   -d "grant_type=client_credentials" \
-  -d "client_id=demo-client" -d "client_secret=demo-secret" | jq
+  -d "client_id=client-service" -d "client_secret=<voir realm-demo.json>" | jq
 
 # Inspecter le JWT (claims realm_access.roles attendus)
 TOKEN=$(... ci-dessus ...)

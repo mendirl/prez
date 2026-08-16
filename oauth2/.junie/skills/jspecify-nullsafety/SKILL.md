@@ -1,3 +1,8 @@
+---
+name: jspecify-nullsafety
+description: Gérer la null-safety du projet (JSpecify 1.0 + NullAway 0.13 + ErrorProne 2.47), configurés via `nullability-maven-plugin` (extension) dans le parent POM.
+---
+
 # Skill: jspecify-nullsafety
 
 Gérer la null-safety du projet : JSpecify 1.0 + NullAway 0.13 + ErrorProne 2.47,
@@ -17,10 +22,11 @@ configurés via `nullability-maven-plugin` (extension) dans le parent POM.
 ## Recettes
 
 ### Créer un nouveau package
-1. Créer `src/main/java/com/example/<module>/<pkg>/package-info.java` :
+
+1. Créer `src/main/java/io/mendirl/demo/<module>/<pkg>/package-info.java` :
    ```java
    @NullMarked
-   package com.example.<module>.<pkg>;
+   package io.mendirl.demo.<module>.<pkg>;
 
    import org.jspecify.annotations.NullMarked;
    ```

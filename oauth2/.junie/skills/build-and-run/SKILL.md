@@ -1,3 +1,8 @@
+---
+name: build-and-run
+description: Compiler, lancer et dépanner ce projet Maven multi-modules (Spring Boot 4 / Java 25).
+---
+
 # Skill: build-and-run
 
 Compiler, lancer et dépanner ce projet Maven multi-modules (Spring Boot 4 / Java 25).

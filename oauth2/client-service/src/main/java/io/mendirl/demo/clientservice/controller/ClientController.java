@@ -1,7 +1,9 @@
-package com.example.clientservice.controller;
+package io.mendirl.demo.clientservice.controller;
 
+import io.mendirl.demo.clientservice.config.ResourceServerProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
@@ -19,6 +21,8 @@ import java.util.Map;
 @RequestMapping("/client")
 public class ClientController {
 
+    private static final Logger log = LoggerFactory.getLogger(ClientController.class);
+
     private final RestClient restClient;
     private final RestClient plainRestClient;
     private final OAuth2AuthorizedClientManager tokenExchangeAuthorizedClientManager;
@@ -27,11 +31,11 @@ public class ClientController {
     public ClientController(RestClient restClient,
                             @Qualifier("plain") RestClient plainRestClient,
                             @Qualifier("tokenExchange") OAuth2AuthorizedClientManager tokenExchangeAuthorizedClientManager,
-                            @Value("${resource-server.base-url}") String resourceServerBaseUrl) {
+                            ResourceServerProperties resourceServerProperties) {
         this.restClient = restClient;
         this.plainRestClient = plainRestClient;
         this.tokenExchangeAuthorizedClientManager = tokenExchangeAuthorizedClientManager;
-        this.resourceServerBaseUrl = resourceServerBaseUrl;
+        this.resourceServerBaseUrl = resourceServerProperties.baseUrl();
     }
 
     /**
@@ -40,6 +44,9 @@ public class ClientController {
      */
     @GetMapping("/call")
     public Map<?, ?> callResourceServer() {
+        log.info(
+                "[Client Credentials] Appel de resource-server {}/api/message avec le token de service-account de client-service",
+                resourceServerBaseUrl);
         Map<?, ?> body = restClient.get()
                 .uri(resourceServerBaseUrl + "/api/message")
                 .retrieve()
@@ -47,6 +54,7 @@ public class ClientController {
         if (body == null) {
             throw new IllegalStateException("Réponse vide du resource-server");
         }
+        log.info("[Client Credentials] Réponse reçue de resource-server : {}", body);
         return body;
     }
 
@@ -54,26 +62,34 @@ public class ClientController {
      * Flow OAuth 2.0 Token Exchange (RFC 8693) : `client-service` reçoit le
      * token de l'utilisateur transmis par `frontend-service`, l'échange
      * auprès de Keycloak contre un nouveau token émis pour lui-même
-     * (`demo-client`) mais représentant toujours l'utilisateur, puis appelle
+     * (`client-service`) mais représentant toujours l'utilisateur, puis appelle
      * `resource-server` avec ce token échangé. Le résultat dépend donc des
      * rôles de l'utilisateur d'origine.
      */
     @GetMapping("/call-as-user")
     public Map<?, ?> callResourceServerAsUser(JwtAuthenticationToken authentication) {
+        log.info("[Token Exchange] Requête reçue pour l'utilisateur '{}', échange du token auprès de Keycloak",
+                authentication.getName());
         OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
                 .withClientRegistrationId("token-exchange")
                 .principal(authentication)
                 .build();
         OAuth2AuthorizedClient authorizedClient = tokenExchangeAuthorizedClientManager.authorize(authorizeRequest);
         if (authorizedClient == null) {
+            log.warn("[Token Exchange] Échec de l'échange de token pour l'utilisateur '{}'", authentication.getName());
             throw new IllegalStateException("Échange de token impossible");
         }
         String exchangedToken = authorizedClient.getAccessToken().getTokenValue();
+        log.info("[Token Exchange] Token échangé obtenu pour l'utilisateur '{}'", authentication.getName());
 
         boolean isAdmin = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch("ROLE_ADMIN"::equals);
         String path = isAdmin ? "/api/admin/dashboard" : "/api/user/profile";
+        log.info("[Token Exchange] Appel de resource-server {}{} avec le token échangé (utilisateur admin={})",
+                resourceServerBaseUrl,
+                path,
+                isAdmin);
 
         Map<?, ?> body = plainRestClient.get()
                 .uri(resourceServerBaseUrl + path)
@@ -83,6 +99,7 @@ public class ClientController {
         if (body == null) {
             throw new IllegalStateException("Réponse vide du resource-server");
         }
+        log.info("[Token Exchange] Réponse reçue de resource-server : {}", body);
         return body;
     }
 }

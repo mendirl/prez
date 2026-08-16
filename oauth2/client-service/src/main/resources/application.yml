@@ -10,15 +10,15 @@ spring:
         registration:
           client-credentials:
             provider: keycloak
-            client-id: demo-client
-            client-secret: demo-secret
+            client-id: client-service
+            client-secret: "a1brNuKzLvEFeqh37BgDaBrK3ucU1IpgSoay3yF2LGA="
             authorization-grant-type: client_credentials
             scope:
               - openid
           token-exchange:
             provider: keycloak
-            client-id: demo-client
-            client-secret: demo-secret
+            client-id: client-service
+            client-secret: "a1brNuKzLvEFeqh37BgDaBrK3ucU1IpgSoay3yF2LGA="
             authorization-grant-type: urn:ietf:params:oauth:grant-type:token-exchange
         provider:
           keycloak:
@@ -29,3 +29,10 @@ spring:
 
 resource-server:
   base-url: http://localhost:8081
+
+logging:
+  level:
+    io.mendirl.demo.clientservice: DEBUG
+    org.springframework.security: INFO
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.web.client.RestClient: DEBUG

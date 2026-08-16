@@ -45,7 +45,7 @@ utilisateur ──login──► frontend-service ──Bearer (token utilisateu
                                                                               ▼
                                                                          Keycloak :8080
                                                                               │
-                                                              nouveau token (même utilisateur, azp=demo-client)
+                                                              nouveau token (même utilisateur, azp=client-service)
                                                                               ▼
                                                                     resource-server :8081
                                                         (/api/admin/dashboard si ADMIN, /api/user/profile sinon)
@@ -194,12 +194,12 @@ curl http://localhost:8082/client/call | jq
 ```
 
 Récupérer un access token utilisateur en ligne de commande (activer
-`directAccessGrantsEnabled` sur `frontend-client` si besoin) :
+`directAccessGrantsEnabled` sur `frontend-service` si besoin) :
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/demo/protocol/openid-connect/token \
   -d "grant_type=password" -d "username=alice" -d "password=alice" \
-  -d "client_id=frontend-client" -d "client_secret=frontend-secret" | jq -r .access_token)
+  -d "client_id=frontend-service" -d "client_secret=ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=" | jq -r .access_token)
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/admin/dashboard
 ```
@@ -208,15 +208,18 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/admin/dashboard
 
 ## 7. Clients Keycloak (realm `demo`)
 
-| clientId          | Type         | Flow                  | Secret            | Redirect URI |
-|-------------------|--------------|-----------------------|-------------------|--------------|
-| `demo-client`     | confidentiel | Client Credentials + Token Exchange (requester) | `demo-secret`     | — |
-| `frontend-client` | confidentiel | Authorization Code    | `frontend-secret` | `http://localhost:8083/login/oauth2/code/keycloak` |
+| clientId           | Type         | Flow                                            | Secret                                         | Redirect URI                                       |
+|--------------------|--------------|-------------------------------------------------|------------------------------------------------|----------------------------------------------------|
+| `client-service`   | confidentiel | Client Credentials + Token Exchange (requester) | `a1brNuKzLvEFeqh37BgDaBrK3ucU1IpgSoay3yF2LGA=` | —                                                  |
+| `frontend-service` | confidentiel | Authorization Code                              | `ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=` | `http://localhost:8083/login/oauth2/code/keycloak` |
 
-> Le client scope `demo-client-audience` (mapper d'audience) est affecté par défaut à
-> `frontend-client` : il ajoute `demo-client` dans l'`aud` du token utilisateur, ce qui
-> autorise `demo-client` (utilisé par `client-service`) à échanger ce token pour lui-même
-> via le flow Token Exchange.
+> Le clientId Keycloak de chaque service correspond à son `spring.application.name`
+> (`client-service`, `frontend-service`), et les secrets sont de vrais secrets aléatoires
+> (générés via `openssl rand -base64 32`), à ne pas réutiliser tels quels en production.
+>
+> Le client scope `client-service-audience` (mapper d'audience) est affecté par défaut à
+> `frontend-service` : il ajoute `client-service` dans l'`aud` du token utilisateur, ce qui
+> autorise `client-service` à échanger ce token pour lui-même via le flow Token Exchange.
 
 ---
 
@@ -242,19 +245,19 @@ Particularités Maven :
 
 ## 9. Concepts clés
 
-| Concept | Description |
-|---|---|
-| **Client Credentials** | Flow OAuth2 sans utilisateur, service-account du client. |
-| **Authorization Code + PKCE** | Flow standard OIDC : redirection navigateur → code → token, sécurisé par un `code_verifier`/`code_challenge` (S256). Activé côté Spring via `OAuth2AuthorizationRequestCustomizers.withPkce()` et exigé côté Keycloak via `pkce.code.challenge.method=S256`. |
-| **OIDC** | Couche d'identité sur OAuth2 : ID Token JWT décrivant l'utilisateur. |
-| **OAuth 2.0 Token Exchange (RFC 8693)** | Un client (`client-service`) échange un token reçu (émis pour un autre client) contre un nouveau token émis pour lui-même, en conservant l'utilisateur (`sub`). Activé côté Keycloak 25 via la feature preview `--features=token-exchange`, exposé côté Spring via `TokenExchangeOAuth2AuthorizedClientProvider` (grant `urn:ietf:params:oauth:grant-type:token-exchange`). |
-| **JWKS** | Le resource-server valide les JWT via la clé publique exposée par Keycloak. |
-| **`realm_access.roles`** | Rôles realm Keycloak, mappés en `ROLE_*` côté Spring. |
-| **`sec:authorize`** | Attribut Thymeleaf qui rend conditionnellement selon `hasRole(...)`. |
-| **HTMX** | Le front recharge des fragments HTML sans JS, via `hx-get` / `hx-target`. |
-| **RP-Initiated Logout** | Logout déclenché par le frontend, propagé à Keycloak. |
-| **JSpecify `@NullMarked`** | Non-null par défaut au niveau package ; `@Nullable` localement. |
-| **NullAway** | Vérifie statiquement la null-safety à la compilation (échec = build cassé). |
+| Concept                                 | Description                                                                                                                                                                                                                                                                                     |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Client Credentials**                  | Flow OAuth2 sans utilisateur, service-account du client.                                                                                                                                                                                                                                        |
+| **Authorization Code + PKCE**           | Flow standard OIDC : redirection navigateur → code → token, sécurisé par un `code_verifier`/`code_challenge` (S256). Activé côté Spring via `OAuth2AuthorizationRequestCustomizers.withPkce()` et exigé côté Keycloak via `pkce.code.challenge.method=S256`.                                    |
+| **OIDC**                                | Couche d'identité sur OAuth2 : ID Token JWT décrivant l'utilisateur.                                                                                                                                                                                                                            |
+| **OAuth 2.0 Token Exchange (RFC 8693)** | Un client (`client-service`) échange un token reçu (émis pour un autre client) contre un nouveau token émis pour lui-même, en conservant l'utilisateur (`sub`). Exposé côté Spring via `TokenExchangeOAuth2AuthorizedClientProvider` (grant `urn:ietf:params:oauth:grant-type:token-exchange`). |
+| **JWKS**                                | Le resource-server valide les JWT via la clé publique exposée par Keycloak.                                                                                                                                                                                                                     |
+| **`realm_access.roles`**                | Rôles realm Keycloak, mappés en `ROLE_*` côté Spring.                                                                                                                                                                                                                                           |
+| **`sec:authorize`**                     | Attribut Thymeleaf qui rend conditionnellement selon `hasRole(...)`.                                                                                                                                                                                                                            |
+| **HTMX**                                | Le front recharge des fragments HTML sans JS, via `hx-get` / `hx-target`.                                                                                                                                                                                                                       |
+| **RP-Initiated Logout**                 | Logout déclenché par le frontend, propagé à Keycloak.                                                                                                                                                                                                                                           |
+| **JSpecify `@NullMarked`**              | Non-null par défaut au niveau package ; `@Nullable` localement.                                                                                                                                                                                                                                 |
+| **NullAway**                            | Vérifie statiquement la null-safety à la compilation (échec = build cassé).                                                                                                                                                                                                                     |
 
 ---
 
@@ -320,11 +323,13 @@ Options du script :
 
 ## 12. Dépannage
 
-| Symptôme | Cause probable | Remède |
-|---|---|---|
-| `Connection refused :8080` | Keycloak pas prêt | Attendre 30 s, vérifier `docker logs keycloak` |
-| Login OK mais pas de badge ADMIN | Realm pas réimporté | `docker compose down -v && up -d` |
-| `401 invalid_token` sur `/api/*` | Token expiré ou mauvais issuer | Vérifier `issuer-uri` dans `application.yml` |
-| `403` sur `/api/admin/**` avec alice | Realm non importé / mapping rôles KO | Inspecter le JWT sur https://jwt.io |
-| `403` / `invalid_request` sur `/client/call-as-user` | Feature `token-exchange` non activée sur Keycloak, ou audience `demo-client` absente du token utilisateur | Vérifier `--features=token-exchange` dans `docker-compose.yml` et le client scope `demo-client-audience` sur `frontend-client` (`docker compose down -v && up -d` après modif du realm) |
-| Build cassé NullAway | Violation de nullité | Annoter `@Nullable` ou gérer le `null` explicitement |
+| Symptôme                                                                           | Cause probable                                                                                                                                                                       | Remède                                                                                                                                                          |
+|------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Connection refused :8080`                                                         | Keycloak pas prêt                                                                                                                                                                    | Attendre 30 s, vérifier `docker logs keycloak`                                                                                                                  |
+| Login OK mais pas de badge ADMIN                                                   | Realm pas réimporté                                                                                                                                                                  | `docker compose down -v && up -d`                                                                                                                               |
+| `401 invalid_token` sur `/api/*`                                                   | Token expiré ou mauvais issuer                                                                                                                                                       | Vérifier `issuer-uri` dans `application.yml`                                                                                                                    |
+| `403` sur `/api/admin/**` avec alice                                               | Realm non importé / mapping rôles KO                                                                                                                                                 | Inspecter le JWT sur https://jwt.io                                                                                                                             |
+| `403` / `invalid_request` sur `/client/call-as-user`                               | Audience `client-service` absente du token utilisateur ou permissions insuffisantes                                                                                                  | Vérifier le client scope `client-service-audience` sur `frontend-service` (`docker compose down -v && up -d` après modif du realm)                              |
+| `invalid_request: Standard token exchange is not enabled for the requested client` | L'attribut client `standard.token.exchange.enabled` n'est pas activé sur `client-service` (depuis Keycloak 26, le Token Exchange standard doit être activé explicitement par client) | Vérifier `"standard.token.exchange.enabled": "true"` dans les `attributes` de `client-service` (`realm-demo.json`), puis `docker compose down -v && up -d`      |
+| `We are sorry... Invalid redirect uri` à la déconnexion                            | L'URI de post-logout `http://localhost:8083/` utilisée par `OidcClientInitiatedLogoutSuccessHandler` n'est pas déclarée pour `frontend-service`                                      | Vérifier l'attribut `"post.logout.redirect.uris": "http://localhost:8083/*"` sur `frontend-service` (`realm-demo.json`), puis `docker compose down -v && up -d` |
+| Build cassé NullAway                                                               | Violation de nullité                                                                                                                                                                 | Annoter `@Nullable` ou gérer le `null` explicitement                                                                                                            |

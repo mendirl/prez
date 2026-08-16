@@ -1,9 +1,11 @@
-package com.example.clientservice;
+package io.mendirl.demo.clientservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class ClientServiceApplication {
 
     public static void main(String[] args) {

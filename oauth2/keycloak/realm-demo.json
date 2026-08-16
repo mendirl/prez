@@ -9,15 +9,18 @@
   },
   "clients": [
     {
-      "clientId": "demo-client",
+      "clientId": "client-service",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "demo-secret",
+      "secret": "a1brNuKzLvEFeqh37BgDaBrK3ucU1IpgSoay3yF2LGA=",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "publicClient": false,
       "protocol": "openid-connect",
+      "attributes": {
+        "standard.token.exchange.enabled": "true"
+      },
       "defaultClientScopes": [
         "openid",
         "profile",
@@ -26,10 +29,10 @@
       ]
     },
     {
-      "clientId": "frontend-client",
+      "clientId": "frontend-service",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "frontend-secret",
+      "secret": "ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=",
       "redirectUris": [
         "http://localhost:8083/login/oauth2/code/keycloak"
       ],
@@ -42,7 +45,8 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8083/*"
       },
       "defaultClientScopes": [
         "openid",
@@ -53,11 +57,11 @@
       ],
       "protocolMappers": [
         {
-          "name": "demo-client-audience-mapper",
+          "name": "client-service-audience-mapper",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
           "config": {
-            "included.client.audience": "demo-client",
+            "included.client.audience": "client-service",
             "access.token.claim": "true",
             "id.token.claim": "false"
           }

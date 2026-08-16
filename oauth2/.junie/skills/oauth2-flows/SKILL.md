@@ -1,3 +1,8 @@
+---
+name: oauth2-flows
+description: Ajouter ou modifier un flow OAuth2 / OIDC dans ce projet (Spring Boot 4 + Spring Security 6, Keycloak en Authorization Server).
+---
+
 # Skill: oauth2-flows
 
 Ajouter ou modifier un flow OAuth2 / OIDC dans ce projet (Spring Boot 4 +
@@ -11,11 +16,11 @@ Spring Security 6, Keycloak en Authorization Server).
 
 ## Flows présents dans le projet
 
-| Flow | Module client | Client Keycloak | Particularités |
-|---|---|---|---|
-| Client Credentials | `client-service` | `demo-client` (`serviceAccountsEnabled`) | `RestClient` + `OAuth2AuthorizedClientManager` |
-| Authorization Code + OIDC | `frontend-service` | `frontend-client` (`standardFlowEnabled`) | `oauth2Login`, RP-Initiated Logout, rôles depuis access token |
-| OAuth 2.0 Token Exchange (RFC 8693) | `client-service` (endpoint `/client/call-as-user`) | `demo-client` (requester) | `frontend-service` transmet le token utilisateur en Bearer à `client-service`, qui l'échange auprès de Keycloak puis appelle `resource-server` avec le nouveau token |
+| Flow                                | Module client                                      | Client Keycloak                             | Particularités                                                                                                                                                       |
+|-------------------------------------|----------------------------------------------------|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Client Credentials                  | `client-service`                                   | `client-service` (`serviceAccountsEnabled`) | `RestClient` + `OAuth2AuthorizedClientManager`                                                                                                                       |
+| Authorization Code + OIDC           | `frontend-service`                                 | `frontend-service` (`standardFlowEnabled`)  | `oauth2Login`, RP-Initiated Logout, rôles depuis access token                                                                                                        |
+| OAuth 2.0 Token Exchange (RFC 8693) | `client-service` (endpoint `/client/call-as-user`) | `client-service` (requester)                | `frontend-service` transmet le token utilisateur en Bearer à `client-service`, qui l'échange auprès de Keycloak puis appelle `resource-server` avec le nouveau token |
 
 Le `resource-server` valide les JWT via JWKS de Keycloak (`issuer-uri` dans
 `application.yml`).
@@ -29,14 +34,14 @@ Le `resource-server` valide les JWT via JWKS de Keycloak (`issuer-uri` dans
   `subjectTokenResolver` par défaut lit le token depuis l'`Authentication` courante
   (le `JwtAuthenticationToken` du Bearer entrant) — pas besoin de le résoudre manuellement.
 - Registration `token-exchange` dans `application.yml` : `authorization-grant-type:
-  urn:ietf:params:oauth:grant-type:token-exchange`, `client-id`/`client-secret` = ceux
-  du client qui effectue l'échange (`demo-client`).
+  urn:ietf:params:oauth:grant-type:token-exchange`, `client-id`/`client-secret` = ceux du client qui effectue l'échange
+  (`client-service`).
 - Côté Keycloak 25 (preview, pas encore "Standard Token Exchange" v2 de Keycloak 26.2+) :
-  activer `--features=token-exchange` sur le conteneur, et faire en sorte que le token
-  source (émis pour `frontend-client`) contienne le client requester (`demo-client`)
+  activer `--features=token-exchange` sur le conteneur, et faire en sorte que le token source (émis pour
+  `frontend-service`) contienne le client requester (`client-service`)
   dans son `aud` — via un client scope avec un mapper `oidc-audience-mapper`
-  (`included.client.audience=demo-client`), affecté par défaut à `frontend-client`
-  (voir `keycloak/realm-demo.json`, scope `demo-client-audience`). Sans cela, Keycloak
+  (`included.client.audience=client-service`), affecté par défaut à `frontend-service`
+  (voir `keycloak/realm-demo.json`, scope `client-service-audience`). Sans cela, Keycloak
   refuse l'échange (l'exchange n'est autorisé que si le requester est dans l'audience
   du subject token, ou est le même client).
 

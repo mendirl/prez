@@ -12,8 +12,8 @@ spring:
         registration:
           keycloak:
             provider: keycloak
-            client-id: frontend-client
-            client-secret: frontend-secret
+            client-id: frontend-service
+            client-secret: "ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU="
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             scope:
@@ -30,3 +30,10 @@ resource-server:
 
 client-service:
   base-url: http://localhost:8082
+
+logging:
+  level:
+    io.mendirl.demo.frontend: DEBUG
+    org.springframework.security: INFO
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.web.client.RestClient: DEBUG

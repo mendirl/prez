@@ -8,7 +8,7 @@ utilisateur) avec les conventions, contraintes et workflows internes.
 
 ## 1. Identité du projet
 
-- **Nom** : `prez-oauth2` (groupId `com.example.oauth2`, version `1.0.0-SNAPSHOT`).
+- **Nom** : `prez-oauth2` (groupId `io.mendirl.demo`, version `1.0.0-SNAPSHOT`).
 - **Objectif** : démonstration pédagogique de deux flows OAuth2/OIDC contre Keycloak.
 - **Langue** : code en anglais, **documentation et messages utilisateur en français**.
   Conserver le français dans `README.md`, templates Thymeleaf et messages d'erreur.
@@ -64,7 +64,8 @@ Chaque module suit la même arborescence :
 ## 4. Conventions de code
 
 ### Java
-- Packages racine : `com.example.<module>` (`resourceserver`, `clientservice`, `frontend`).
+
+- Packages racine : `io.mendirl.demo.<module>` (`resourceserver`, `clientservice`, `frontend`).
 - **Constructor injection** uniquement (pas de `@Autowired` sur champ).
 - Imports : ordre Spring (`java`/`javax` → tiers → `org.springframework` → projet).
 - Pas de Lombok (volontairement absent).
@@ -91,8 +92,11 @@ Chaque module suit la même arborescence :
 - Garder le parent POM minimal : `<subprojects>`, `<properties>`, `<build>` (plugin nullability).
 
 ### Sécurité — règles non négociables
-- Pas de hardcoding de secrets autres que ceux de démo (`demo-secret`, `frontend-secret`)
-  qui sont **uniquement** dans `keycloak/realm-demo.json` et `application.yml`.
+
+- Les clientId Keycloak correspondent au `spring.application.name` de chaque module (`client-service`,
+  `frontend-service`). Les secrets sont de vrais secrets aléatoires (générés via `openssl rand -base64 32`), présents
+  **uniquement** dans
+  `keycloak/realm-demo.json` et `application.yml` (pas de secret trivial type `demo-secret`).
 - Toute nouvelle ressource HTTP doit être explicitement autorisée dans la
   `SecurityFilterChain` correspondante (matcher + `hasRole`/`authenticated`/`permitAll`).
 - Les rôles Spring sont **préfixés `ROLE_`**, mappés depuis `realm_access.roles`
@@ -156,7 +160,7 @@ docker logs -f keycloak
 # Vérifier qu'un token est bien émis
 curl -s -X POST http://localhost:8080/realms/demo/protocol/openid-connect/token \
   -d "grant_type=client_credentials" \
-  -d "client_id=demo-client" -d "client_secret=demo-secret" | jq
+  -d "client_id=client-service" -d "client_secret=<voir realm-demo.json>" | jq
 ```
 
 ---
@@ -220,4 +224,4 @@ Avant de soumettre une tâche, vérifier :
 - [ ] Si endpoint ou realm modifié : `README.md` à jour.
 - [ ] Pas de fichier hors scope modifié (target/, .idea/, etc.).
 - [ ] Changements alignés avec la stack (pas de nouvelle techno furtive).
-- [ ] Messages utilisateurs / commentaires en français cohérent avec l'existant.
+- [ ] Messages utilisateurs / commentaires en français cohérent avec l'existant. stant.

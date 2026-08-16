@@ -1,5 +1,7 @@
-package com.example.clientservice.config;
+package io.mendirl.demo.clientservice.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,12 +10,7 @@ import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
-import org.springframework.security.oauth2.client.TokenExchangeOAuth2AuthorizedClientProvider;
+import org.springframework.security.oauth2.client.*;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -24,6 +21,8 @@ import java.io.IOException;
 
 @Configuration
 public class WebClientConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(WebClientConfig.class);
 
     @Bean
     @Qualifier("clientCredentials")
@@ -91,10 +90,15 @@ public class WebClientConfig {
                         .withClientRegistrationId("client-credentials")
                         .principal("client-service")
                         .build();
+                log.info("[Client Credentials] Demande de token auprès de Keycloak pour appeler {}", request.getURI());
                 var authorizedClient = authorizedClientManager.authorize(authorizeRequest);
                 if (authorizedClient != null) {
                     var token = authorizedClient.getAccessToken().getTokenValue();
+                    log.info("[Client Credentials] Token de service-account obtenu (expire à {})",
+                            authorizedClient.getAccessToken().getExpiresAt());
                     request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+                } else {
+                    log.warn("[Client Credentials] Impossible d'obtenir un token pour appeler {}", request.getURI());
                 }
                 return execution.execute(request, body);
             }
