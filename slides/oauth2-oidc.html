@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OAuth2 et OIDC avec Keycloak</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .remark-slide-content {
+      font-size: 26px;
+    }
+
+    .remark-slide-content h1 {
+      color: #204a87;
+    }
+
+    .remark-slide-content h2 {
+      color: #3465a4;
+    }
+
+    .remark-slide-content code {
+      font-size: 0.85em;
+    }
+
+    .remark-slide-content pre code {
+      font-size: 0.75em;
+      line-height: 1.35;
+    }
+
+    .remark-slide-content table {
+      font-size: 0.8em;
+    }
+
+    .small {
+      font-size: 0.7em;
+    }
+
+    .remark-slide-content.compact {
+      font-size: 22px;
+    }
+  </style>
+</head>
+<body>
+<textarea id="source" style="display:none;">
+class: center, middle
+
+# OAuth2 et OpenID Connect
+
+## Démonstration avec Keycloak et Spring Boot
+
+---
+
+## Objectif
+
+Permettre à une application de déléguer :
+
+- l'**authentification** à Keycloak ;
+- l'**autorisation** à des jetons OAuth2 ;
+- l'**identité utilisateur** à OpenID Connect (OIDC).
+
+Le projet illustre trois façons d'obtenir et d'utiliser un jeton.
+
+---
+
+## OAuth2 ou OIDC ?
+
+| OAuth2 | OIDC |
+|---|---|
+| Délégation d'accès à une ressource | Couche d'identité construite sur OAuth2 |
+| Produit un *access token* | Ajoute un *ID token* |
+| « Cette application peut-elle appeler l'API ? » | « Qui est l'utilisateur connecté ? » |
+
+Dans ce projet, les *access tokens* sont des JWT émis par Keycloak.
+
+---
+
+## Les composants de la démonstration
+
+```
+                     ┌──────────────┐
+                     │   Keycloak   │
+                     │    :8080     │
+                     └──────┬───────┘
+          émet les jetons   │
+       ┌────────────────────┼────────────────────┐
+       ▼                    ▼                    ▼
+client-service       frontend-service      resource-server
+    :8082                 :8083                 :8081
+```
+
+- **Keycloak** : authorization server et fournisseur OIDC ;
+- **frontend-service** : application web Thymeleaf/HTMX ;
+- **client-service** : client machine-à-machine et intermédiaire ;
+- **resource-server** : API protégée qui valide les JWT.
+
+---
+
+## Le JWT reçu par l'API
+
+Un jeton contient notamment :
+
+```json
+{
+  "iss": "http://localhost:8080/realms/demo",
+  "sub": "...",
+  "azp": "frontend-service",
+  "realm_access": { "roles": ["USER", "ADMIN"] }
+}
+```
+
+Le `resource-server` vérifie la signature grâce aux clés publiques (JWKS) de Keycloak, puis transforme les rôles en autorités Spring : `ROLE_USER`, `ROLE_ADMIN`.
+
+---
+
+## JWT — trois parties lisibles
+
+Un JSON Web Token est une chaîne composée de trois blocs encodés en Base64URL :
+
+```text
+eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiJ9
+             .
+eyJpc3MiOiJodHRwOi8vLi4uIiwic3ViIjoiLi4uIn0
+             .
+RsaSignature...
+     header             payload              signature
+```
+
+- le **header** indique notamment l'algorithme (`alg`) et l'identifiant de clé (`kid`) ;
+- le **payload** porte les *claims* : identité, client, droits et dates ;
+- la **signature** relie les deux premiers blocs à la clé privée de Keycloak.
+
+Encodé ne veut pas dire chiffré : toute personne qui possède le token peut lire son header et son payload. Seul Keycloak peut produire une signature valable.
+
+---
+
+class: compact
+
+## Access token — claims utiles dans ce projet
+
+```json
+{
+  "iss": "http://localhost:8080/realms/demo",
+  "sub": "identifiant-stable-du-sujet",
+  "aud": ["client-service"],
+  "azp": "frontend-service",
+  "exp": 1760000000,
+  "scope": "openid profile email",
+  "realm_access": { "roles": ["USER", "ADMIN"] }
+}
+```
+
+| Claim | Rôle |
+|---|---|
+| `iss` | émetteur attendu : le realm Keycloak `demo` |
+| `sub` | sujet : utilisateur ou compte de service |
+| `aud` / `azp` | destinataire(s) / client qui a obtenu le token |
+| `iat`, `nbf`, `exp` | émis à, valide à partir de, expiration (timestamps Unix) |
+| `scope`, `realm_access.roles` | permissions OAuth2 et rôles Keycloak |
+
+Les claims effectivement présents dépendent du flow, des scopes et des mappers du client.
+
+---
+
+## Ne pas confondre les jetons
+
+| Jeton | Destinataire et usage | Ne doit pas servir à |
+|---|---|---|
+| **Access token** | API / resource server ; transmis dans `Authorization: Bearer ...` | afficher l'identité dans le navigateur |
+| **ID token** | client OIDC ; identité de la session (`sub`, nom, e-mail...) | autoriser un appel API |
+| **Refresh token** | client OAuth2 ; obtenir de nouveaux jetons | être envoyé à une API ou au navigateur |
+
+Dans le flow web, `frontend-service` utilise l'ID token pour la connexion OIDC et l'access token pour les appels aux services. Dans Client Credentials, il n'y a pas d'utilisateur ni d'ID token : le `sub` représente le compte de service.
+
+---
+
+## Validation JWT — qui fait quoi ?
+
+```text
+Bearer <JWT> ─► resource-server / client-service
+                     │
+                     ├─ découvre la configuration OIDC depuis issuer-uri
+                     ├─ récupère les clés publiques JWKS de Keycloak
+                     ├─ choisit la clé indiquée par le header kid
+                     ├─ vérifie cryptographiquement la signature
+                     └─ contrôle iss, nbf et exp avant d'authentifier la requête
+```
+
+La propriété commune aux deux services est :
+
+```yaml
+spring.security.oauth2.resourceserver.jwt.issuer-uri: http://localhost:8080/realms/demo
+```
+
+Un token expiré, émis par un autre realm, altéré, ou signé avec une clé inconnue est rejeté avant l'exécution des contrôleurs.
+
+---
+
+## Validation JWT — des claims aux droits Spring
+
+Après validation, Spring remet un objet `Jwt` au contrôleur et calcule les autorités :
+
+```text
+scope: "openid profile"          ─► SCOPE_openid, SCOPE_profile
+realm_access.roles: ["ADMIN"]    ─► ROLE_ADMIN
+```
+
+Les `SecurityConfig` de `resource-server` et `client-service` lisent explicitement `realm_access.roles` et préfixent chaque rôle par `ROLE_`.
+
+| Règle dans `resource-server` | Autorité attendue |
+|---|---|
+| `/api/user/**` | `ROLE_USER` ou `ROLE_ADMIN` |
+| `/api/admin/**` | `ROLE_ADMIN` |
+
+La signature établit que les claims sont intègres ; les règles Spring décident ensuite si ces claims donnent accès à la ressource demandée.
+
+---
+
+## Audience : protection supplémentaire à prévoir
+
+La claim `aud` indique les destinataires prévus du token. Pour le Token Exchange, le mapper de `frontend-service` ajoute bien `client-service` à `aud` dans l'**access token** : Keycloak exige cette audience avant l'échange.
+
+Dans l'état actuel du code, les resource servers valident l'émetteur, la signature et les dates via `issuer-uri`, mais ne configurent pas de contrôle applicatif supplémentaire de `aud`.
+
+À ajouter dans une application exposée : un validateur Spring qui exige l'audience de l'API ciblée. Cela évite qu'un access token valable pour une autre API soit accepté par erreur.
+
+---
+
+## Lire un JWT sans lui faire confiance
+
+On peut décoder localement les deux premières parties pour diagnostiquer un token :
+
+```text
+Base64URL(header) . Base64URL(payload) . signature
+```
+
+Cela permet de vérifier visuellement `iss`, `aud`, `exp`, `scope` et `realm_access.roles`, mais **ne prouve rien**. Le résultat n'est exploitable pour l'autorisation qu'après validation de la signature et des claims par le resource server.
+
+Ne pas coller un access token réel dans un site tiers : c'est un secret de type Bearer. Toute personne qui le détient peut l'utiliser jusqu'à son expiration.
+
+---
+
+## Flow 1 — Client Credentials
+
+Pour un appel **service à service**, sans utilisateur.
+
+```
+client-service ── client_id + secret ──► Keycloak
+       │              access token              │
+       └──────── Bearer JWT ────────────────► resource-server
+```
+
+Dans l'exemple :
+
+```text
+GET http://localhost:8082/client/call
+```
+
+`client-service` obtient son propre jeton puis appelle `/api/message`.
+
+---
+
+## Client Credentials — échanges
+
+```text
+ Consommateur       client-service              Keycloak             resource-server
+      │                    │                       │                       │
+      ├─ GET /client/call ─►                       │                       │
+      │                    ├─ POST /token ─────────►                       │
+      │                    │  grant_type=client_credentials                │
+      │                    │  client_id + client_secret                    │
+      │                    ◄─ access_token (JWT service) ─┤                │
+      │                    │                                               │
+      │                    ├─ GET /api/message ───────────────────────────►
+      │                    │  Authorization: Bearer <JWT service>          │
+      │                    │                                               ├─ JWKS ─► Keycloak
+      │                    │                                               ◄───────── clés publiques
+      │                    ◄─ réponse API ─────────────────────────────────┤
+      ◄─ réponse API ──────┤                       │                       │
+```
+
+Le secret est utilisé uniquement entre `client-service` et Keycloak ; le JWT de service est ensuite présenté à l'API.
+
+---
+
+## Client Credentials — 1. Déclenchement
+
+Un consommateur appelle l'endpoint public de démonstration :
+
+```text
+GET http://localhost:8082/client/call
+```
+
+Dans `client-service`, un intercepteur `RestClient` prépare l'appel vers
+`resource-server` et demande un jeton pour la registration `client-credentials`.
+
+- principal technique : `client-service` ;
+- client Keycloak : `client-service` ;
+- pas de navigateur, pas de session, pas d'utilisateur.
+
+---
+
+## Client Credentials — 2. Émission du jeton
+
+`client-service` appelle le endpoint `.../protocol/openid-connect/token` de Keycloak :
+
+```text
+grant_type=client_credentials
+client_id=client-service
+client_secret=••••••••
+```
+
+Keycloak authentifie le **client confidentiel** et vérifie que son *service account* est activé. Il renvoie un *access token* JWT qui représente le service, pas un utilisateur.
+
+Le client et son secret ne quittent jamais le backend `client-service`.
+
+---
+
+## Client Credentials — 3. Appel et contrôle
+
+```
+client-service ── Authorization: Bearer <JWT service> ──► GET /api/message
+                                                          resource-server
+```
+
+1. `resource-server` charge les clés publiques JWKS depuis l'issuer Keycloak.
+2. Il vérifie signature, expiration et émetteur du JWT.
+3. `/api/message` exige seulement une authentification : l'appel est accepté.
+4. La réponse expose notamment le `sub`, le `azp`, les scopes et les rôles du JWT.
+
+Ce flux convient à une tâche planifiée, un backend ou une intégration sans personne connectée.
+
+---
+
+## Flow 2 — Authorization Code + PKCE + OIDC
+
+Pour la connexion d'un utilisateur dans le navigateur.
+
+```
+navigateur ──► frontend-service ──► Keycloak
+     ▲               │                 │
+     └── session ────┴── code + PKCE ───┘
+                         │
+                  access token + ID token
+```
+
+- le navigateur est redirigé vers Keycloak ;
+- Keycloak renvoie un **code** ;
+- le frontend échange le code contre les jetons ;
+- PKCE relie le code au navigateur via `code_verifier` / `code_challenge` (S256).
+
+---
+
+## Authorization Code + PKCE — échanges
+
+```text
+ Navigateur            frontend-service                  Keycloak             resource-server
+     │                        │                              │                       │
+     ├─ page protégée ────────►                              │                       │
+     ◄─ 302 /authorize ───────┤                              │                       │
+     ├─ GET /authorize?code_challenge ──────────────────────►│                       │
+     │                        │                              │                       │
+     │       authentification utilisateur                    │                       │
+     ◄─ 302 callback?code&state ──────────────────────────────┤                       │
+     ├─ GET /login/oauth2/code/... ─►                        │                       │
+     │                        ├─ POST /token : code + code_verifier ──────►│         │
+     │                        ◄─ ID token + access token + refresh token ─┤         │
+     ◄─ session applicative ───┤                              │                       │
+     ├─ action utilisateur ────►                              │                       │
+     │                        ├─ Bearer <access token> ───────────────────►│
+     │                        ◄─ réponse API ──────────────────────────────┤
+```
+
+Le navigateur ne manipule jamais le `client_secret` ni le `code_verifier` ; l'échange des jetons est effectué par le backend du frontend.
+
+---
+
+## Authorization Code — 1. Redirection vers Keycloak
+
+L'utilisateur accède à une page protégée du `frontend-service`.
+
+1. Spring Security redirige le navigateur vers `/oauth2/authorization/keycloak`.
+2. Le frontend construit la demande d'autorisation : `client_id=frontend-service`, URI de retour et scopes `openid profile email`.
+3. Il génère un `state`, un `code_verifier` secret et le `code_challenge` dérivé en `S256`.
+4. Le navigateur est redirigé vers Keycloak avec le challenge, mais **jamais** avec le verifier.
+
+Le `state` protège le retour contre une réponse d'autorisation non sollicitée ; PKCE protège le code intercepté.
+
+---
+
+## Authorization Code — 2. Login puis code à usage unique
+
+```
+navigateur ──► Keycloak : authentification alice / bob
+     │
+     └── 302 vers /login/oauth2/code/keycloak?code=...&state=... ──► frontend-service
+```
+
+- Keycloak authentifie l'utilisateur et porte ses rôles `USER` / `ADMIN` dans le realm `demo`.
+- Il vérifie l'URI de redirection déclarée pour `frontend-service`.
+- Il délivre un **authorization code** court, à usage unique ; aucun JWT n'est encore visible dans l'URL de retour.
+
+---
+
+## Authorization Code — 3. Échange serveur à serveur
+
+Le callback est traité par le `frontend-service`, qui échange le code auprès de Keycloak :
+
+```text
+grant_type=authorization_code
+code=...
+redirect_uri=http://localhost:8083/login/oauth2/code/keycloak
+client_secret=••••••••
+code_verifier=...
+```
+
+Après validation du code, du client et de PKCE, Keycloak renvoie :
+
+| Jeton | Usage dans l'exemple |
+|---|---|
+| *ID token* | identité OIDC et affichage de l'utilisateur connecté |
+| *Access token* | appels Bearer vers `resource-server` et `client-service` |
+| *Refresh token* | renouvellement éventuel de la session OAuth2 |
+
+---
+
+## Authorization Code — 4. Rôles et appels API
+
+Spring conserve l'utilisateur OIDC dans la session du frontend. Les rôles realm ne figurant pas nécessairement dans l'ID token, le `frontend-service` analyse son **access token** et convertit `realm_access.roles` en `ROLE_USER` / `ROLE_ADMIN`.
+
+```
+frontend-service ── Bearer <access token utilisateur> ──► resource-server
+```
+
+- `/api/user/profile` accepte `USER` ou `ADMIN` ;
+- `/api/admin/dashboard` exige `ADMIN` ;
+- la page `/admin` applique cette même règle dans la chaîne HTTP et avec `@PreAuthorize`.
+
+---
+
+## Les rôles pilotent l'accès
+
+| Endpoint API | Accès |
+|---|---|
+| `/api/public/hello` | public |
+| `/api/message` | utilisateur authentifié |
+| `/api/user/profile` | `USER` ou `ADMIN` |
+| `/api/admin/dashboard` | `ADMIN` |
+
+Les rôles Keycloak sont lus dans `realm_access.roles` et mappés par Spring Security.
+
+Dans le frontend, la page `/admin` est protégée dans la chaîne de sécurité et par `@PreAuthorize("hasRole('ADMIN')")`.
+
+---
+
+## Flow 3 — Token Exchange (RFC 8693)
+
+Un service agit **au nom de l'utilisateur** sans transmettre son jeton tel quel jusqu'à l'API.
+
+```
+utilisateur → frontend-service → client-service → Keycloak
+                                  │              │
+                                  └─ nouveau JWT ┘
+                                         │
+                                         ▼
+                                   resource-server
+```
+
+`client-service` échange le jeton utilisateur contre un nouveau jeton dont il est l'audience, tout en conservant l'utilisateur représenté.
+
+---
+
+## Token Exchange RFC 8693 — échanges
+
+```text
+ Navigateur       frontend-service       client-service           Keycloak          resource-server
+     │                   │                     │                    │                    │
+     ├─ action HTMX ────►│                     │                    │                    │
+     │                   ├─ GET /client/call-as-user ──────────────►│                    │
+     │                   │  Bearer <access token utilisateur>      │                    │
+     │                   │                     ├─ valide le JWT    │                    │
+     │                   │                     ├─ POST /token ────►│                    │
+     │                   │                     │  grant_type=token-exchange             │
+     │                   │                     │  subject_token=<JWT utilisateur>       │
+     │                   │                     ◄─ access_token échangé ─┤                │
+     │                   │                     │                    │                    │
+     │                   │                     ├─ Bearer <JWT échangé> ─────────────────►│
+     │                   │                     ◄─ réponse selon rôles ──────────────────┤
+     │                   ◄─ fragment HTML ────┤                    │                    │
+     ◄─ interface mise à jour ┤                │                    │                    │
+```
+
+Le jeton entrant sert de preuve de la délégation ; seul le nouveau jeton, contrôlé pour cette relation de confiance, atteint `resource-server`.
+
+---
+
+## Token Exchange — 1. Transmission contrôlée
+
+Depuis le fragment HTMX dédié, le `frontend-service` récupère l'*access token* de l'utilisateur connecté et l'envoie :
+
+```text
+GET /client/call-as-user
+Authorization: Bearer <access token de l'utilisateur>
+```
+
+`client-service` est aussi un **resource server** : avant tout échange, Spring valide ce Bearer (issuer, signature, expiration) et reconstruit les autorités à partir des rôles Keycloak.
+
+Sans Bearer valide, `/client/call-as-user` n'est pas accessible.
+
+---
+
+## Token Exchange — 2. Demande RFC 8693
+
+Le manager OAuth2 dédié utilise la registration `token-exchange` de `client-service` et appelle Keycloak avec :
+
+```text
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+subject_token=<JWT utilisateur entrant>
+subject_token_type=urn:ietf:params:oauth:token-type:access_token
+client_id=client-service
+client_secret=••••••••
+```
+
+Le `subject_token` est enveloppé comme *access token* explicitement : cette précision est nécessaire pour l'endpoint Token Exchange de Keycloak 25.
+
+---
+
+## Token Exchange — 3. Autorisation de l'échange
+
+Keycloak n'autorise pas n'importe quel service à échanger le jeton d'un utilisateur.
+
+1. `client-service` est le *requester* et son Token Exchange est activé dans le realm.
+2. Le jeton source du `frontend-service` doit contenir `client-service` dans sa claim `aud`.
+3. Le mapper d'audience Keycloak du client `frontend-service` ajoute cette audience à l'*access token* — pas à l'ID token.
+4. Keycloak émet alors un nouveau JWT, destiné à `client-service`, qui représente toujours l'utilisateur.
+
+Cette audience évite qu'un client tiers puisse utiliser un jeton qui ne lui est pas destiné.
+
+---
+
+## Token Exchange — 4. Appel final au nom de l'utilisateur
+
+```
+client-service ── Bearer <JWT échangé> ──► resource-server
+```
+
+`client-service` examine les rôles du jeton entrant pour choisir la ressource :
+
+| Rôles de l'utilisateur | Endpoint appelé avec le jeton échangé |
+|---|---|
+| `ADMIN` | `/api/admin/dashboard` |
+| `USER` sans `ADMIN` | `/api/user/profile` |
+
+Le `resource-server` valide à nouveau ce **nouveau** JWT et applique ses règles RBAC. Le token initial n'est donc pas propagé tel quel jusqu'à l'API finale.
+
+---
+
+## Démonstration proposée
+
+1. Démarrer Keycloak et les trois services.
+2. Appeler `http://localhost:8082/client/call` : flux machine-à-machine.
+3. Ouvrir `http://localhost:8083` et se connecter avec :
+   - `alice` / `alice` : rôles `USER`, `ADMIN` ;
+   - `bob` / `bob` : rôle `USER`.
+4. Comparer les accès aux zones utilisateur et administrateur.
+5. Depuis le frontend, déclencher le fragment « Token Exchange ».
+
+---
+
+## À retenir
+
+- OAuth2 délègue l'accès ; OIDC ajoute l'identité.
+- Le choix du flow dépend du contexte : service, navigateur, délégation.
+- Un access token ne suffit pas : l'API valide son émetteur, sa signature et les rôles requis.
+- Les secrets et jetons sont des données sensibles : ceux du projet sont réservés à la démonstration.
+
+---
+
+class: center, middle
+
+# Questions ?
+
+<div class="small">Support basé sur le répertoire `oauth2/` : Keycloak, Spring Security et les services de démonstration.</div>
+</textarea>
+
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>
+  var slideshow = remark.create({
+    ratio: '16:9',
+    highlightStyle: 'github',
+    highlightLines: true,
+    navigation: {
+      scroll: false,
+      touch: true
+    }
+  });
+</script>
+</body>
+</html>
