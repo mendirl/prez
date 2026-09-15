@@ -59,7 +59,7 @@ utilisateur ──login──► frontend-service ──Bearer (token utilisateu
 |-------|---------|
 | JDK | **25** (testé GraalVM 25.0.3) |
 | Maven | **3.9+** ou **4.x** (modelVersion 4.1.0) |
-| Docker / Docker Compose | récent |
+| Docker / Docker Compose | récent (ou Keycloak local 26.7.3) |
 
 ---
 
@@ -85,14 +85,23 @@ mvn -pl frontend-service spring-boot:run   # :8083
 ### Tout-en-un via le script `start-all.sh`
 
 Un script à la racine fait tout d'un coup : réimport du realm (rôles/utilisateurs),
-build Maven, lancement des 3 services en arrière-plan (logs dans `/tmp/*.log`).
+build Maven, lancement des 3 services en arrière-plan (logs dans `/tmp/*.log`). Le
+choix du Keycloak est obligatoire : `--docker` utilise le conteneur et `--local`
+utilise l’installation Keycloak `26.7.3` de `/home/fabien/dev/tools/keycloak-26.7.3`.
 
 ```bash
-./start-all.sh          # (re)lance Keycloak + build + 3 services
-./start-all.sh stop     # arrête tous les services et Keycloak (volume inclus)
+# Keycloak Docker (le volume est supprimé puis le realm réimporté)
+./start-all.sh --docker
+./start-all.sh stop --docker
+
+# Keycloak local (réimporte keycloak/realm-demo.json avant le démarrage)
+./start-all.sh --local
+./start-all.sh stop --local
 ```
 
-Suivre les logs : `tail -f /tmp/{resource-server,client-service,frontend-service}.log`.
+Pour utiliser une autre installation locale, définir `KEYCLOAK_HOME` avant le
+lancement. Suivre les logs : `tail -f /tmp/{resource-server,client-service,frontend-service}.log` ;
+les logs du Keycloak local sont dans `/tmp/keycloak.log`.
 
 ### Compilation native (GraalVM)
 
@@ -265,22 +274,28 @@ Particularités Maven :
 
 Le projet inclut un chart Helm pour déployer les 3 services Spring dans un cluster Kubernetes (ex: Minikube, Kind), tout en conservant Keycloak dans Docker.
 
-### 11.1 Préparation des images Docker
+### 11.1 Compilation et préparation des images Docker
 
-Un script est fourni pour construire les images Docker de tous les modules (ou d'un module spécifique) via Cloud Native Buildpacks (Spring Boot).
+Le script `build.sh` compile le projet par défaut. L'option `--docker` construit les images Docker de tous les modules (ou d'un module spécifique) via Cloud Native Buildpacks (Spring Boot).
 
 ```bash
+# Compilation de tous les modules
+./build.sh
+
+# Compilation d'un module spécifique
+./build.sh resource-server
+
 # Build de toutes les images (format prez-oauth2/<module>:latest)
-./build-images.sh
+./build.sh --docker
 
 # Build d'un module spécifique
-./build-images.sh resource-server
+./build.sh --docker resource-server
 
 # Build avec un tag spécifique
-./build-images.sh -t 1.0.0
+./build.sh --docker -t 1.0.0
 
 # Build en mode natif (GraalVM)
-./build-images.sh -n
+./build.sh --docker -n
 ```
 
 Ceci créera les images suivantes localement :
