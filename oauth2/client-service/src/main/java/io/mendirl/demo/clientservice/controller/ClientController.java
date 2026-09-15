@@ -68,7 +68,9 @@ public class ClientController {
      */
     @GetMapping("/call-as-user")
     public Map<?, ?> callResourceServerAsUser(JwtAuthenticationToken authentication) {
-        log.info("[Token Exchange] Requête reçue pour l'utilisateur '{}', échange du token auprès de Keycloak",
+        log.info("[Token Exchange] Access token reçu pour l'utilisateur '{}' : {}",
+                authentication.getName(), authentication.getToken().getTokenValue());
+        log.info("[Token Exchange] Échange du token auprès de Keycloak pour l'utilisateur '{}'",
                 authentication.getName());
         OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
                 .withClientRegistrationId("token-exchange")
@@ -80,7 +82,8 @@ public class ClientController {
             throw new IllegalStateException("Échange de token impossible");
         }
         String exchangedToken = authorizedClient.getAccessToken().getTokenValue();
-        log.info("[Token Exchange] Token échangé obtenu pour l'utilisateur '{}'", authentication.getName());
+        log.info("[Token Exchange] Access token échangé reçu pour l'utilisateur '{}' : {}",
+                authentication.getName(), exchangedToken);
 
         boolean isAdmin = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)

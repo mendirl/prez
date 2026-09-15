@@ -53,27 +53,40 @@ class: center, middle
 
 ---
 
+class: compact
+
 ## Objectif
 
-Permettre à une application de déléguer :
+Séparer les responsabilités de sécurité, plutôt que de les réimplémenter dans chaque application.
 
-- l'**authentification** à Keycloak ;
-- l'**autorisation** à des jetons OAuth2 ;
-- l'**identité utilisateur** à OpenID Connect (OIDC).
+| Acteur | Responsabilité |
+|---|---|
+| **Keycloak** | authentifie, porte le SSO et émet les jetons |
+| **Client** | demande l'accès à une API ou connecte l'utilisateur |
+| **Resource server** | valide le jeton et décide l'accès à sa ressource |
 
-Le projet illustre trois façons d'obtenir et d'utiliser un jeton.
+OAuth2 délègue l'**autorisation** d'accès aux APIs ; OIDC ajoute l'**identité** de l'utilisateur authentifié.
+
+Le projet illustre ces rôles dans trois situations :
+
+- **Client Credentials** : `client-service` agit seul, de machine à machine ;
+- **Authorization Code + PKCE + OIDC** : `frontend-service` connecte l'utilisateur ;
+- **Token Exchange** : `client-service` obtient un jeton adapté pour agir au nom de cet utilisateur.
 
 ---
 
+class: compact
+
 ## OAuth2 ou OIDC ?
 
-| OAuth2 | OIDC |
-|---|---|
-| Délégation d'accès à une ressource | Couche d'identité construite sur OAuth2 |
-| Produit un *access token* | Ajoute un *ID token* |
-| « Cette application peut-elle appeler l'API ? » | « Qui est l'utilisateur connecté ? » |
+| | OAuth2 | OpenID Connect (OIDC) |
+|---|---|---|
+| But | Déléguer l'accès à une API | Authentifier et identifier l'utilisateur |
+| Jeton principal | `access token` | `ID token`, en plus de l'`access token` |
+| Destinataire | **API / resource server** | **Client** qui a initié la connexion |
+| Question | « Cette API peut-elle être appelée ? » | « Qui vient de se connecter ? » |
 
-Dans ce projet, les *access tokens* sont des JWT émis par Keycloak.
+Demander le scope `openid` active OIDC et permet de recevoir un `ID token`. Dans ce projet, les `access tokens` sont des JWT émis par Keycloak et transmis aux APIs ; l'`ID token` sert au client à établir la session et **ne doit pas** autoriser un appel d'API.
 
 ---
 
@@ -97,6 +110,8 @@ client-service       frontend-service      resource-server
 - **resource-server** : API protégée qui valide les JWT.
 
 ---
+
+class: compact
 
 ## Le JWT reçu par l'API
 
@@ -600,6 +615,58 @@ Le `resource-server` valide à nouveau ce **nouveau** JWT et applique ses règle
 - Le choix du flow dépend du contexte : service, navigateur, délégation.
 - Un access token ne suffit pas : l'API valide son émetteur, sa signature et les rôles requis.
 - Les secrets et jetons sont des données sensibles : ceux du projet sont réservés à la démonstration.
+
+---
+
+class: compact
+
+## API gateway — point d'entrée, pas fournisseur d'identité
+
+```text
+Navigateur / client ──► API gateway ──┬──► frontend-service  :8083
+                                      ├──► client-service    :8082
+                                      └──► resource-server   :8081
+          gateway ── découverte OIDC / JWKS ──► Keycloak :8080
+```
+
+La gateway expose les routes publiques et applique les politiques transverses :
+
+- terminaison **TLS**, routage et réécriture d'URL ;
+- **CORS**, limites de débit et protections contre les abus ;
+- authentification en bordure et validation initiale du token ;
+- journalisation, métriques et traces homogènes.
+
+Keycloak reste l'authorization server et le fournisseur OIDC : la gateway ne remplace ni la page de connexion ni l'émission des jetons.
+
+---
+
+class: compact
+
+## API gateway — éléments de mise en place
+
+1. **Définir les routes exposées** vers `frontend-service`, `client-service` et `resource-server`, puis appliquer TLS, CORS et limites de débit par route.
+2. **Configurer OIDC** : registration du client, URI de callback exacte, `issuer` et découverte des clés JWKS chez Keycloak.
+3. **Choisir la validation** : JWT local (signature, issuer, dates et audience) ou introspection selon le type de token et le besoin de révocation immédiate.
+4. **Transmettre de façon contrôlée** le `Authorization: Bearer` ou des informations minimales vers les services ; ne jamais faire confiance à des headers d'identité venant du client.
+5. **Rendre observable** : logs d'accès, refus d'authentification, métriques de débit/latence et traces corrélées.
+
+Ces choix sont indépendants du produit de gateway retenu ; ils complètent les clients OIDC et les resource servers existants.
+
+---
+
+class: compact
+
+## Défense en profondeur — responsabilités partagées
+
+| Gateway | Services protégés |
+|---|---|
+| Routes, TLS, CORS, limites de débit et politiques communes | Décision d'accès à la ressource et règles métier |
+| Peut rejeter tôt un token invalide | Valident à nouveau signature, issuer, expiration et audience attendue |
+| Transmet uniquement le contexte nécessaire | Appliquent scopes et RBAC (`realm_access.roles`) |
+
+Même avec une gateway, `resource-server` et `client-service` restent des **resource servers** : leurs `SecurityConfig` utilisent `issuer-uri`, vérifient les JWT et convertissent les rôles Keycloak en autorités Spring.
+
+Ainsi, un accès interne qui contournerait la gateway ne devient pas implicitement fiable. La gateway renforce la frontière externe ; elle ne remplace jamais les autorisations métier dans les services.
 
 ---
 

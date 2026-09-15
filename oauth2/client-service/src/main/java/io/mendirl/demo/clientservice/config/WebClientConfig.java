@@ -94,8 +94,8 @@ public class WebClientConfig {
                 var authorizedClient = authorizedClientManager.authorize(authorizeRequest);
                 if (authorizedClient != null) {
                     var token = authorizedClient.getAccessToken().getTokenValue();
-                    log.info("[Client Credentials] Token de service-account obtenu (expire à {})",
-                            authorizedClient.getAccessToken().getExpiresAt());
+                    log.info("[Client Credentials] Access token de service-account reçu (expire à {}) : {}",
+                            authorizedClient.getAccessToken().getExpiresAt(), token);
                     request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
                 } else {
                     log.warn("[Client Credentials] Impossible d'obtenir un token pour appeler {}", request.getURI());

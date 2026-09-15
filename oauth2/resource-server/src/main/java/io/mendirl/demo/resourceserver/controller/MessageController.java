@@ -20,6 +20,7 @@ public class MessageController {
 
     @GetMapping("/message")
     public Map<String, Object> getMessage(@AuthenticationPrincipal Jwt jwt) {
+        log.info("Access token reçu : {}", jwt.getTokenValue());
         log.info("GET /api/message appelé par le sujet '{}' (client_id/azp={})",
                 jwt.getClaimAsString("preferred_username"),
                 jwt.getClaimAsString("azp"));
@@ -37,6 +38,7 @@ public class MessageController {
 
     @GetMapping("/user/profile")
     public Map<String, Object> userProfile(@AuthenticationPrincipal Jwt jwt) {
+        log.info("Access token reçu : {}", jwt.getTokenValue());
         log.info("GET /api/user/profile appelé par '{}' avec les rôles {}",
                 jwt.getClaimAsString("preferred_username"),
                 extractRoles(jwt));
@@ -49,6 +51,7 @@ public class MessageController {
 
     @GetMapping("/admin/dashboard")
     public Map<String, Object> adminDashboard(@AuthenticationPrincipal Jwt jwt) {
+        log.info("Access token reçu : {}", jwt.getTokenValue());
         log.info("GET /api/admin/dashboard appelé par '{}' avec les rôles {}",
                 jwt.getClaimAsString("preferred_username"),
                 extractRoles(jwt));

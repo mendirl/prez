@@ -69,6 +69,8 @@ public class SecurityConfig {
                 OidcUser user = delegate.loadUser(userRequest);
                 Set<GrantedAuthority> authorities = new LinkedHashSet<>(user.getAuthorities());
                 authorities.addAll(extractRealmRoles(userRequest.getAccessToken().getTokenValue()));
+                log.info("Connexion OIDC : ID token reçu : {}", user.getIdToken().getTokenValue());
+                log.info("Connexion OIDC : access token reçu : {}", userRequest.getAccessToken().getTokenValue());
                 log.info("Connexion OIDC r\u00e9ussie pour l'utilisateur '{}' avec les r\u00f4les {}",
                         user.getName(),
                         authorities);
