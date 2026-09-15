@@ -334,6 +334,29 @@ Ce flux convient à une tâche planifiée, un backend ou une intégration sans p
 
 ---
 
+## Authorization Code sans PKCE : le flow historique
+
+```text
+Navigateur ── /authorize ──► Keycloak
+     │                          │
+     ◄── callback?code=... ─────┘
+     │
+Client ── code + client_secret ──► /token ──► access token
+```
+
+- le code est ramené par le navigateur, puis échangé contre les jetons ;
+- un **client confidentiel** prouve son identité avec son `client_secret` ;
+- sans PKCE, quiconque intercepte le code et peut s'authentifier comme le client peut tenter de l'échanger.
+
+**Avec PKCE**, le client crée un `code_verifier` secret avant la redirection et n'envoie que son empreinte (`code_challenge`) à Keycloak. Lors de l'échange, le verifier est exigé : un code intercepté seul devient inutilisable.
+
+| Sans PKCE | Avec PKCE |
+|---|---|
+| Code lié au client | Code lié au client **et** à la preuve créée pour cette autorisation |
+| Risque accru pour SPA, mobile et client public | Recommandé pour tous les clients, indispensable pour les clients publics |
+
+---
+
 ## Flow 2 — Authorization Code + PKCE + OIDC
 
 Pour la connexion d'un utilisateur dans le navigateur.
