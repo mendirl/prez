@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 / OIDC – Démo Vue.js</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+        .hero, .card { background: #f5f7fa; padding: 1rem 1.5rem; border-radius: 8px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+        .card { min-height: 120px; }
+        .card.admin { background: #fef3c7; border: 1px solid #f59e0b; }
+        .card.user { background: #dcfce7; border: 1px solid #22c55e; }
+        button, a.btn { display: inline-block; background: #2563eb; color: white; border: none; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; }
+        button.admin { background: #d97706; }
+        button.user { background: #16a34a; }
+        button.logout { background: #ef4444; }
+        .badge { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-size: .75rem; margin-left: .3rem; color: white; }
+        .badge-admin { background: #d97706; }
+        .badge-user { background: #16a34a; }
+        pre { background: #1f2937; color: #f3f4f6; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: .75rem; white-space: pre-wrap; word-break: break-all; }
+        .error { color: #dc2626; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <section v-if="loading" class="hero">Chargement de la session…</section>
+
+    <section v-else-if="!session" class="hero">
+        <h1>Démo OAuth2 / OIDC — Vue.js</h1>
+        <p>Frontend Spring Boot + Vue.js, sécurisé via Keycloak.</p>
+        <p>Connectez-vous pour démarrer le flow <code>authorization_code</code> avec PKCE.</p>
+        <a class="btn" :href="contextPath + '/oauth2/authorization/keycloak'">Se connecter avec Keycloak</a>
+    </section>
+
+    <template v-else>
+        <header>
+            <h1>
+                Bonjour {{ session.name }} 👋
+                <span v-if="hasRole('ADMIN')" class="badge badge-admin">ADMIN</span>
+                <span v-else-if="hasRole('USER')" class="badge badge-user">USER</span>
+            </h1>
+            <button class="logout" @click="logout">Déconnexion</button>
+        </header>
+
+        <p>Vous êtes authentifié via le flow <strong>Authorization Code + PKCE</strong> (OIDC) sur Keycloak.</p>
+        <h3>Identité &amp; rôles</h3>
+        <ul>
+            <li><strong>sub</strong> : {{ session.claims.sub }}</li>
+            <li><strong>preferred_username</strong> : {{ session.claims.preferred_username }}</li>
+            <li><strong>email</strong> : {{ session.claims.email }}</li>
+            <li><strong>authorities</strong> : <code>{{ session.authorities.join(', ') }}</code></li>
+        </ul>
+
+        <div class="grid">
+            <section v-if="hasRole('USER')">
+                <h3>👤 Espace utilisateur</h3>
+                <button class="user" @click="request('user', '/api/user')">Appeler /api/user/profile</button>
+                <api-result class="card user" :result="results.user" placeholder="Disponible aux rôles USER et ADMIN."></api-result>
+            </section>
+
+            <section v-if="hasRole('ADMIN')">
+                <h3>🛡️ Espace administrateur</h3>
+                <button class="admin" @click="request('admin', '/api/admin')">Appeler /api/admin/dashboard</button>
+                <api-result class="card admin" :result="results.admin" placeholder="Réservé au rôle ADMIN."></api-result>
+                <p><a :href="contextPath + '/admin'">→ Page d'administration dédiée</a></p>
+            </section>
+            <section v-else>
+                <h3>🛡️ Espace administrateur</h3>
+                <div class="card"><em>🚫 Accès refusé : votre compte n'a pas le rôle ADMIN.</em></div>
+            </section>
+
+            <section>
+                <h3>ID Token (OIDC)</h3>
+                <div class="card">
+                    <p>Jeton d'identité destiné au frontend après la connexion.</p>
+                    <details><summary>Voir l'ID token brut</summary><pre>{{ session.idToken }}</pre></details>
+                </div>
+            </section>
+
+            <section>
+                <h3>Access Token</h3>
+                <button @click="loadAccessToken">Afficher l'access token</button>
+                <div class="card" v-if="accessToken">
+                    <p><strong>Expire à :</strong> {{ accessToken.expiresAt }}</p>
+                    <p><strong>Scopes :</strong> {{ Array.from(accessToken.scopes).join(', ') }}</p>
+                    <details><summary>Voir le JWT brut</summary><pre>{{ accessToken.value }}</pre></details>
+                </div>
+                <div class="card" v-else><em>Cliquez pour récupérer le token via Vue.js.</em></div>
+            </section>
+
+            <section>
+                <h3>Endpoint générique</h3>
+                <button @click="request('message', '/api/message')">Appeler /api/message</button>
+                <api-result class="card" :result="results.message" placeholder="Disponible à tous les utilisateurs authentifiés."></api-result>
+            </section>
+
+            <section>
+                <h3>🔁 Token Exchange (via clientm)</h3>
+                <button @click="request('clientm', '/api/clientm')">Appeler client-service /client/call-as-user</button>
+                <api-result class="card" :result="results.clientm" placeholder="Le frontend transmet votre token à client-service, qui l'échange auprès de Keycloak."></api-result>
+            </section>
+        </div>
+    </template>
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    const apiResult = {
+        props: ['result', 'placeholder'],
+        template: `
+            <template v-if="result">
+                <p><small><code>{{ result.endpoint }}</code></small></p>
+                <p v-if="result.error" class="error"><strong>Erreur :</strong> {{ result.error }}</p>
+                <pre v-else>{{ JSON.stringify(result.response, null, 2) }}</pre>
+            </template>
+            <em v-else>{{ placeholder }}</em>`
+    };
+
+    createApp({
+        components: { apiResult },
+        data() {
+            return {
+                loading: true,
+                session: null,
+                csrf: null,
+                accessToken: null,
+                results: {},
+                contextPath: window.location.pathname === '/vue' || window.location.pathname.startsWith('/vue/') ? '/vue' : ''
+            };
+        },
+        async mounted() {
+            const headers = { Accept: 'application/json' };
+            const [sessionResponse, csrfResponse] = await Promise.all([
+                fetch(this.contextPath + '/api/session', { credentials: 'same-origin', headers }),
+                fetch(this.contextPath + '/api/csrf', { credentials: 'same-origin', headers })
+            ]);
+            if (sessionResponse.ok) this.session = await sessionResponse.json();
+            if (csrfResponse.ok) this.csrf = await csrfResponse.json();
+            this.loading = false;
+        },
+        methods: {
+            hasRole(role) { return this.session.authorities.includes('ROLE_' + role); },
+            async request(name, url) {
+                const response = await fetch(this.contextPath + url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+                this.results[name] = await response.json();
+            },
+            async loadAccessToken() {
+                const response = await fetch(this.contextPath + '/api/access-token', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+                if (response.ok) this.accessToken = await response.json();
+            },
+            logout() {
+                const form = document.createElement('form');
+                form.method = 'post';
+                form.action = this.contextPath + '/logout';
+                const token = document.createElement('input');
+                token.type = 'hidden';
+                token.name = this.csrf.parameterName;
+                token.value = this.csrf.token;
+                form.appendChild(token);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

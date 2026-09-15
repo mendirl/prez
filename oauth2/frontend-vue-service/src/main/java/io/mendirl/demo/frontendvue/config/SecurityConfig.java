@@ -1,4 +1,4 @@
-package io.mendirl.demo.frontend.config;
+package io.mendirl.demo.frontendvue.config;
 
 import com.nimbusds.jwt.JWTParser;
 import org.jspecify.annotations.Nullable;
@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
@@ -20,10 +22,16 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequest
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.client.RestClient;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Configuration
 @EnableMethodSecurity
@@ -36,10 +44,13 @@ public class SecurityConfig {
                                                    ClientRegistrationRepository clientRegistrationRepository) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/css/**", "/webjars/**", "/error").permitAll()
-                .requestMatchers("/admin/**", "/fragments/admin/**").hasRole("ADMIN")
+                .requestMatchers("/", "/index.html", "/error", "/api/csrf").permitAll()
+                .requestMatchers("/admin", "/api/admin").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                    new MediaTypeRequestMatcher(MediaType.APPLICATION_JSON)))
             .oauth2Login(oauth -> oauth
                 .defaultSuccessUrl("/home", true)
                 .authorizationEndpoint(a -> a.authorizationRequestResolver(
@@ -52,28 +63,20 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Service OIDC qui enrichit l'utilisateur avec les rôles `realm_access.roles`
-     * issus de l'access token Keycloak (par défaut, ces rôles ne sont pas dans
-     * l'ID token). Les rôles sont préfixés `ROLE_` pour que `hasRole(...)` fonctionne.
-     */
     @Bean
     public OidcUserService keycloakOidcUserService() {
         OidcUserService delegate = new OidcUserService();
         return new OidcUserService() {
             @Override
             public OidcUser loadUser(OidcUserRequest userRequest) {
-                log.info(
-                        "Connexion OIDC : r\u00e9cup\u00e9ration des informations utilisateur aupr\u00e8s de Keycloak (client '{}')",
+                log.info("Connexion OIDC : récupération des informations utilisateur auprès de Keycloak (client '{}')",
                         userRequest.getClientRegistration().getClientId());
                 OidcUser user = delegate.loadUser(userRequest);
                 Set<GrantedAuthority> authorities = new LinkedHashSet<>(user.getAuthorities());
                 authorities.addAll(extractRealmRoles(userRequest.getAccessToken().getTokenValue()));
                 log.info("Connexion OIDC : ID token reçu : {}", user.getIdToken().getTokenValue());
                 log.info("Connexion OIDC : access token reçu : {}", userRequest.getAccessToken().getTokenValue());
-                log.info("Connexion OIDC r\u00e9ussie pour l'utilisateur '{}' avec les r\u00f4les {}",
-                        user.getName(),
-                        authorities);
+                log.info("Connexion OIDC réussie pour l'utilisateur '{}' avec les rôles {}", user.getName(), authorities);
                 String nameAttr = userRequest.getClientRegistration()
                         .getProviderDetails()
                         .getUserInfoEndpoint()
@@ -121,16 +124,9 @@ public class SecurityConfig {
         OidcClientInitiatedLogoutSuccessHandler handler =
                 new OidcClientInitiatedLogoutSuccessHandler(clientRegistrationRepository);
         handler.setPostLogoutRedirectUri("{baseUrl}/");
-        log.info("Déconnexion : redirection vers Keycloak (end_session_endpoint) puis retour sur {baseUrl}/");
         return handler;
     }
 
-    /**
-     * Active PKCE (RFC 7636) sur le flow Authorization Code, y compris pour un
-     * client confidentiel comme `frontend-service`. Par défaut, Spring Security
-     * n'active PKCE que pour les clients publics ; ici on le force via
-     * `OAuth2AuthorizationRequestCustomizers.withPkce()` (code_challenge S256).
-     */
     private OAuth2AuthorizationRequestResolver pkceAuthorizationRequestResolver(
             ClientRegistrationRepository clientRegistrationRepository) {
         DefaultOAuth2AuthorizationRequestResolver resolver =
@@ -138,10 +134,5 @@ public class SecurityConfig {
                         clientRegistrationRepository, "/oauth2/authorization");
         resolver.setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce());
         return resolver;
-    }
-
-    @Bean
-    public RestClient restClient() {
-        return RestClient.create();
     }
 }

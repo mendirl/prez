@@ -4,7 +4,7 @@ set -e
 # Configuration
 IMAGE_REPO="prez-oauth2"
 TAG="latest"
-DEFAULT_MODULES=("resource-server" "client-service" "frontend-service")
+DEFAULT_MODULES=("resource-server" "client-service" "frontend-htmx-service" "frontend-vue-service")
 
 # Détection de Maven
 if [ -f "./mvnw" ]; then

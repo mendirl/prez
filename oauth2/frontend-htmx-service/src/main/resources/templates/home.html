@@ -89,6 +89,17 @@
     </div>
 
     <div>
+        <h3>ID Token (OIDC)</h3>
+        <div class="card">
+            <p>Jeton d'identité destiné au frontend après la connexion.</p>
+            <details>
+                <summary>Voir l'ID token brut</summary>
+                <pre th:text="${idToken}"></pre>
+            </details>
+        </div>
+    </div>
+
+    <div>
         <h3>Access Token</h3>
         <button hx-get="/fragments/token" hx-target="#token-box" hx-swap="innerHTML">
             Afficher l'access token

@@ -22,7 +22,8 @@
     <subprojects>
         <subproject>resource-server</subproject>
         <subproject>client-service</subproject>
-        <subproject>frontend-service</subproject>
+        <subproject>frontend-htmx-service</subproject>
+        <subproject>frontend-vue-service</subproject>
     </subprojects>
 
     <properties>

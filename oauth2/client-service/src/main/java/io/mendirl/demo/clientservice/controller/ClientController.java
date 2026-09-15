@@ -60,7 +60,7 @@ public class ClientController {
 
     /**
      * Flow OAuth 2.0 Token Exchange (RFC 8693) : `client-service` reçoit le
-     * token de l'utilisateur transmis par `frontend-service`, l'échange
+     * token de l'utilisateur transmis par un frontend, l'échange
      * auprès de Keycloak contre un nouveau token émis pour lui-même
      * (`client-service`) mais représentant toujours l'utilisateur, puis appelle
      * `resource-server` avec ce token échangé. Le résultat dépend donc des

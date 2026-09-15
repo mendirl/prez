@@ -1,0 +1,53 @@
+{{- if or (eq .Values.frontend.type "vue") (eq .Values.frontend.type "both") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-vue-service
+  labels:
+    app: frontend-vue-service
+spec:
+  replicas: {{ .Values.frontendVueService.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend-vue-service
+  template:
+    metadata:
+      labels:
+        app: frontend-vue-service
+    spec:
+      containers:
+        - name: frontend-vue-service
+          image: "{{ .Values.image.repository }}/{{ .Values.frontendVueService.image.name }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8084
+              protocol: TCP
+          env:
+            - name: SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI
+              value: "http://keycloak:{{ .Values.keycloak.port }}/realms/demo"
+            - name: RESOURCE_SERVER_BASE_URL
+              value: "http://resource-server:{{ .Values.resourceServer.service.port }}"
+            - name: CLIENT_SERVICE_BASE_URL
+              value: "http://client-service:{{ .Values.clientService.service.port }}"
+            {{- if eq .Values.frontend.type "both" }}
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: /vue
+            {{- end }}
+            - name: SERVER_FORWARD_HEADERS_STRATEGY
+              value: framework
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-vue-service
+spec:
+  type: {{ .Values.frontendVueService.service.type }}
+  ports:
+    - port: {{ .Values.frontendVueService.service.port }}
+      targetPort: 8084
+      protocol: TCP
+      name: http
+  selector:
+    app: frontend-vue-service
+{{- end }}

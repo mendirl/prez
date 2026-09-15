@@ -13,11 +13,25 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          - path: /
+          {{- if eq .Values.frontend.type "both" }}
+          - path: /vue
             pathType: Prefix
             backend:
               service:
-                name: frontend-service
+                name: frontend-vue-service
                 port:
-                  number: {{ .Values.frontendService.service.port }}
+                  number: {{ .Values.frontendVueService.service.port }}
+          {{- end }}
+          - path: /
+            pathType: Prefix
+            backend:
+              {{- if eq .Values.frontend.type "vue" }}
+                name: frontend-vue-service
+                port:
+                  number: {{ .Values.frontendVueService.service.port }}
+              {{- else }}
+                name: frontend-htmx-service
+                port:
+                  number: {{ .Values.frontendHtmxService.service.port }}
+              {{- end }}
 {{- end }}

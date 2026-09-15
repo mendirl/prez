@@ -70,7 +70,7 @@ OAuth2 délègue l'**autorisation** d'accès aux APIs ; OIDC ajoute l'**identit�
 Le projet illustre ces rôles dans trois situations :
 
 - **Client Credentials** : `client-service` agit seul, de machine à machine ;
-- **Authorization Code + PKCE + OIDC** : `frontend-service` connecte l'utilisateur ;
+- **Authorization Code + PKCE + OIDC** : `frontend-htmx-service` ou `frontend-vue-service` connecte l'utilisateur ;
 - **Token Exchange** : `client-service` obtient un jeton adapté pour agir au nom de cet utilisateur.
 
 ---
@@ -100,12 +100,13 @@ Demander le scope `openid` active OIDC et permet de recevoir un `ID token`. Dans
           émet les jetons   │
        ┌────────────────────┼────────────────────┐
        ▼                    ▼                    ▼
-client-service       frontend-service      resource-server
-    :8082                 :8083                 :8081
+client-service   frontend-htmx-service   frontend-vue-service   resource-server
+    :8082                :8083                  :8084               :8081
 ```
 
 - **Keycloak** : authorization server et fournisseur OIDC ;
-- **frontend-service** : application web Thymeleaf/HTMX ;
+- **frontend-htmx-service** : application web Thymeleaf/HTMX ;
+- **frontend-vue-service** : application web Vue.js avec API JSON ;
 - **client-service** : client machine-à-machine et intermédiaire ;
 - **resource-server** : API protégée qui valide les JWT.
 
@@ -121,7 +122,7 @@ Un jeton contient notamment :
 {
   "iss": "http://localhost:8080/realms/demo",
   "sub": "...",
-  "azp": "frontend-service",
+  "azp": "frontend-htmx-service",
   "realm_access": { "roles": ["USER", "ADMIN"] }
 }
 ```
@@ -160,7 +161,7 @@ class: compact
   "iss": "http://localhost:8080/realms/demo",
   "sub": "identifiant-stable-du-sujet",
   "aud": ["client-service"],
-  "azp": "frontend-service",
+  "azp": "frontend-htmx-service",
   "exp": 1760000000,
   "scope": "openid profile email",
   "realm_access": { "roles": ["USER", "ADMIN"] }
@@ -187,7 +188,7 @@ Les claims effectivement présents dépendent du flow, des scopes et des mappers
 | **ID token** | client OIDC ; identité de la session (`sub`, nom, e-mail...) | autoriser un appel API |
 | **Refresh token** | client OAuth2 ; obtenir de nouveaux jetons | être envoyé à une API ou au navigateur |
 
-Dans le flow web, `frontend-service` utilise l'ID token pour la connexion OIDC et l'access token pour les appels aux services. Dans Client Credentials, il n'y a pas d'utilisateur ni d'ID token : le `sub` représente le compte de service.
+Dans le flow web, les deux frontends utilisent l'ID token pour la connexion OIDC et l'access token pour les appels aux services. Dans Client Credentials, il n'y a pas d'utilisateur ni d'ID token : le `sub` représente le compte de service.
 
 ---
 
@@ -235,7 +236,7 @@ La signature établit que les claims sont intègres ; les règles Spring décide
 
 ## Audience : protection supplémentaire à prévoir
 
-La claim `aud` indique les destinataires prévus du token. Pour le Token Exchange, le mapper de `frontend-service` ajoute bien `client-service` à `aud` dans l'**access token** : Keycloak exige cette audience avant l'échange.
+La claim `aud` indique les destinataires prévus du token. Pour le Token Exchange, le mapper de chacun des frontends ajoute bien `client-service` à `aud` dans l'**access token** : Keycloak exige cette audience avant l'échange.
 
 Dans l'état actuel du code, les resource servers valident l'émetteur, la signature et les dates via `issuer-uri`, mais ne configurent pas de contrôle applicatif supplémentaire de `aud`.
 
@@ -379,7 +380,7 @@ Client ── code + client_secret ──► /token ──► access token
 Pour la connexion d'un utilisateur dans le navigateur.
 
 ```
-navigateur ──► frontend-service ──► Keycloak
+navigateur ──► frontend-htmx-service ──► Keycloak
      ▲               │                 │
      └── session ────┴── code + PKCE ───┘
                          │
@@ -396,7 +397,7 @@ navigateur ──► frontend-service ──► Keycloak
 ## Authorization Code + PKCE — échanges
 
 ```text
- Navigateur            frontend-service                  Keycloak             resource-server
+ Navigateur         frontend-htmx-service                Keycloak             resource-server
      │                        │                              │                       │
      ├─ page protégée ────────►                              │                       │
      ◄─ 302 /authorize ───────┤                              │                       │
@@ -419,10 +420,10 @@ Le navigateur ne manipule jamais le `client_secret` ni le `code_verifier` ; l'é
 
 ## Authorization Code — 1. Redirection vers Keycloak
 
-L'utilisateur accède à une page protégée du `frontend-service`.
+L'utilisateur accède à une page protégée du `frontend-htmx-service`.
 
 1. Spring Security redirige le navigateur vers `/oauth2/authorization/keycloak`.
-2. Le frontend construit la demande d'autorisation : `client_id=frontend-service`, URI de retour et scopes `openid profile email`.
+2. Le frontend construit la demande d'autorisation : `client_id=frontend-htmx-service`, URI de retour et scopes `openid profile email`.
 3. Il génère un `state`, un `code_verifier` secret et le `code_challenge` dérivé en `S256`.
 4. Le navigateur est redirigé vers Keycloak avec le challenge, mais **jamais** avec le verifier.
 
@@ -435,18 +436,18 @@ Le `state` protège le retour contre une réponse d'autorisation non sollicitée
 ```
 navigateur ──► Keycloak : authentification alice / bob
      │
-     └── 302 vers /login/oauth2/code/keycloak?code=...&state=... ──► frontend-service
+     └── 302 vers /login/oauth2/code/keycloak?code=...&state=... ──► frontend-htmx-service
 ```
 
 - Keycloak authentifie l'utilisateur et porte ses rôles `USER` / `ADMIN` dans le realm `demo`.
-- Il vérifie l'URI de redirection déclarée pour `frontend-service`.
+- Il vérifie l'URI de redirection déclarée pour `frontend-htmx-service`.
 - Il délivre un **authorization code** court, à usage unique ; aucun JWT n'est encore visible dans l'URL de retour.
 
 ---
 
 ## Authorization Code — 3. Échange serveur à serveur
 
-Le callback est traité par le `frontend-service`, qui échange le code auprès de Keycloak :
+Le callback est traité par le `frontend-htmx-service`, qui échange le code auprès de Keycloak :
 
 ```text
 grant_type=authorization_code
@@ -468,10 +469,10 @@ Après validation du code, du client et de PKCE, Keycloak renvoie :
 
 ## Authorization Code — 4. Rôles et appels API
 
-Spring conserve l'utilisateur OIDC dans la session du frontend. Les rôles realm ne figurant pas nécessairement dans l'ID token, le `frontend-service` analyse son **access token** et convertit `realm_access.roles` en `ROLE_USER` / `ROLE_ADMIN`.
+Spring conserve l'utilisateur OIDC dans la session du frontend. Les rôles realm ne figurant pas nécessairement dans l'ID token, les deux frontends analysent leur **access token** et convertissent `realm_access.roles` en `ROLE_USER` / `ROLE_ADMIN`.
 
 ```
-frontend-service ── Bearer <access token utilisateur> ──► resource-server
+frontend-htmx-service ── Bearer <access token utilisateur> ──► resource-server
 ```
 
 - `/api/user/profile` accepte `USER` ou `ADMIN` ;
@@ -500,7 +501,7 @@ Dans le frontend, la page `/admin` est protégée dans la chaîne de sécurité 
 Un service agit **au nom de l'utilisateur** sans transmettre son jeton tel quel jusqu'à l'API.
 
 ```
-utilisateur → frontend-service → client-service → Keycloak
+utilisateur → frontend → client-service → Keycloak
                                   │              │
                                   └─ nouveau JWT ┘
                                          │
@@ -515,7 +516,7 @@ utilisateur → frontend-service → client-service → Keycloak
 ## Token Exchange RFC 8693 — échanges
 
 ```text
- Navigateur       frontend-service       client-service           Keycloak          resource-server
+ Navigateur    frontend-htmx-service     client-service           Keycloak          resource-server
      │                   │                     │                    │                    │
      ├─ action HTMX ────►│                     │                    │                    │
      │                   ├─ GET /client/call-as-user ──────────────►│                    │
@@ -538,7 +539,7 @@ Le jeton entrant sert de preuve de la délégation ; seul le nouveau jeton, cont
 
 ## Token Exchange — 1. Transmission contrôlée
 
-Depuis le fragment HTMX dédié, le `frontend-service` récupère l'*access token* de l'utilisateur connecté et l'envoie :
+Depuis le fragment HTMX dédié, le `frontend-htmx-service` récupère l'*access token* de l'utilisateur connecté et l'envoie :
 
 ```text
 GET /client/call-as-user
@@ -572,8 +573,8 @@ Le `subject_token` est enveloppé comme *access token* explicitement : cette pr�
 Keycloak n'autorise pas n'importe quel service à échanger le jeton d'un utilisateur.
 
 1. `client-service` est le *requester* et son Token Exchange est activé dans le realm.
-2. Le jeton source du `frontend-service` doit contenir `client-service` dans sa claim `aud`.
-3. Le mapper d'audience Keycloak du client `frontend-service` ajoute cette audience à l'*access token* — pas à l'ID token.
+2. Le jeton source de l'un des frontends doit contenir `client-service` dans sa claim `aud`.
+3. Le mapper d'audience Keycloak de chaque frontend ajoute cette audience à l'*access token* — pas à l'ID token.
 4. Keycloak émet alors un nouveau JWT, destiné à `client-service`, qui représente toujours l'utilisateur.
 
 Cette audience évite qu'un client tiers puisse utiliser un jeton qui ne lui est pas destiné.
@@ -599,9 +600,9 @@ Le `resource-server` valide à nouveau ce **nouveau** JWT et applique ses règle
 
 ## Démonstration proposée
 
-1. Démarrer Keycloak et les trois services.
+1. Démarrer Keycloak et les quatre services.
 2. Appeler `http://localhost:8082/client/call` : flux machine-à-machine.
-3. Ouvrir `http://localhost:8083` et se connecter avec :
+3. Ouvrir `http://localhost:8083` (HTMX) ou `http://localhost:8084` (Vue.js) et se connecter avec :
    - `alice` / `alice` : rôles `USER`, `ADMIN` ;
    - `bob` / `bob` : rôle `USER`.
 4. Comparer les accès aux zones utilisateur et administrateur.
@@ -623,9 +624,10 @@ class: compact
 ## API gateway — point d'entrée, pas fournisseur d'identité
 
 ```text
-Navigateur / client ──► API gateway ──┬──► frontend-service  :8083
-                                      ├──► client-service    :8082
-                                      └──► resource-server   :8081
+Navigateur / client ──► API gateway ──┬──► frontend-htmx-service :8083
+                                      ├──► frontend-vue-service  :8084
+                                      ├──► client-service        :8082
+                                      └──► resource-server       :8081
           gateway ── découverte OIDC / JWKS ──► Keycloak :8080
 ```
 
@@ -644,7 +646,7 @@ class: compact
 
 ## API gateway — éléments de mise en place
 
-1. **Définir les routes exposées** vers `frontend-service`, `client-service` et `resource-server`, puis appliquer TLS, CORS et limites de débit par route.
+1. **Définir les routes exposées** vers les deux frontends, `client-service` et `resource-server`, puis appliquer TLS, CORS et limites de débit par route.
 2. **Configurer OIDC** : registration du client, URI de callback exacte, `issuer` et découverte des clés JWKS chez Keycloak.
 3. **Choisir la validation** : JWT local (signature, issuer, dates et audience) ou introspection selon le type de token et le besoin de révocation immédiate.
 4. **Transmettre de façon contrôlée** le `Authorization: Bearer` ou des informations minimales vers les services ; ne jamais faire confiance à des headers d'identité venant du client.

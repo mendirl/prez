@@ -29,15 +29,17 @@
       ]
     },
     {
-      "clientId": "frontend-service",
+      "clientId": "frontend-htmx-service",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=",
       "redirectUris": [
-        "http://localhost:8083/login/oauth2/code/keycloak"
+        "http://localhost:8083/login/oauth2/code/keycloak",
+        "http://prez-oauth2.local/login/oauth2/code/keycloak"
       ],
       "webOrigins": [
-        "http://localhost:8083"
+        "http://localhost:8083",
+        "http://prez-oauth2.local"
       ],
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
@@ -46,7 +48,50 @@
       "protocol": "openid-connect",
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:8083/*"
+        "post.logout.redirect.uris": "http://localhost:8083/*,http://prez-oauth2.local/*"
+      },
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "basic"
+      ],
+      "protocolMappers": [
+        {
+          "name": "client-service-audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "client-service",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "frontend-vue-service",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "tV38pqcayswlI0ITYHlXFOEjiJRBXvU+sQH4K2z7TK4=",
+      "redirectUris": [
+        "http://localhost:8084/login/oauth2/code/keycloak",
+        "http://prez-oauth2.local/login/oauth2/code/keycloak",
+        "http://prez-oauth2.local/vue/login/oauth2/code/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:8084",
+        "http://prez-oauth2.local"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8084/*,http://prez-oauth2.local/*,http://prez-oauth2.local/vue/*"
       },
       "defaultClientScopes": [
         "openid",

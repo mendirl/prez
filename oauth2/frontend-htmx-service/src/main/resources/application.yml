@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: frontend-service
+    name: frontend-htmx-service
   thymeleaf:
     cache: false
   security:
@@ -12,7 +12,7 @@ spring:
         registration:
           keycloak:
             provider: keycloak
-            client-id: frontend-service
+            client-id: frontend-htmx-service
             client-secret: "ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU="
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"

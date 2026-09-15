@@ -45,7 +45,7 @@ public class WebClientConfig {
      * Manager dédié au flow OAuth 2.0 Token Exchange (RFC 8693). Le
      * `subjectTokenResolver` par défaut de `TokenExchangeOAuth2AuthorizedClientProvider`
      * récupère le token à échanger depuis l'`Authentication` courante (le JWT
-     * de l'utilisateur transmis par `frontend-service`, décodé par le
+     * de l'utilisateur transmis par un frontend, décodé par le
      * `oauth2ResourceServer` de ce module).
      */
     @Bean

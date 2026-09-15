@@ -6,9 +6,9 @@
 
     <parent/>
 
-    <artifactId>frontend-service</artifactId>
-    <name>frontend-service</name>
-    <description>Front-end Spring Boot + Thymeleaf + HTMX (OAuth2 Authorization Code / OIDC)</description>
+    <artifactId>frontend-vue-service</artifactId>
+    <name>frontend-vue-service</name>
+    <description>Front-end Spring Boot + Vue.js (OAuth2 Authorization Code / OIDC)</description>
 
     <dependencies>
         <dependency>
@@ -17,15 +17,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.thymeleaf.extras</groupId>
-            <artifactId>thymeleaf-extras-springsecurity6</artifactId>
         </dependency>
     </dependencies>
 

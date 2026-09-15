@@ -27,13 +27,24 @@ clientService:
     type: ClusterIP
     port: 8082
 
-frontendService:
+frontend:
+  type: both
+
+frontendHtmxService:
   replicaCount: 1
   image:
-    name: frontend-service
+    name: frontend-htmx-service
   service:
     type: ClusterIP
     port: 8083
+
+frontendVueService:
+  replicaCount: 1
+  image:
+    name: frontend-vue-service
+  service:
+    type: ClusterIP
+    port: 8084
 
 ingress:
   enabled: false

@@ -1,14 +1,14 @@
-# Démonstration OAuth2 / OIDC avec Keycloak, Spring Boot 4 & HTMX
+# Démonstration OAuth2 / OIDC avec Keycloak, Spring Boot 4, HTMX & Vue.js
 
 Projet pédagogique multi-modules illustrant **trois flows OAuth2** et la **gestion fine des rôles**
 sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **JSpecify**
-(null-safety vérifiée à la compilation via NullAway/ErrorProne), **Thymeleaf + HTMX**.
+(null-safety vérifiée à la compilation via NullAway/ErrorProne), **Thymeleaf + HTMX** et **Vue.js**.
 
 | Flow | Acteur | Module | Cas d'usage |
 |------|--------|--------|-------------|
 | **Client Credentials** (M2M) | service ↔ service | `client-service` → `resource-server` | API consommée par un backend sans utilisateur |
-| **Authorization Code + PKCE + OIDC** | utilisateur ↔ navigateur | `frontend-service` → `resource-server` | Login web, rôles, UI conditionnelle |
-| **OAuth 2.0 Token Exchange** (RFC 8693) | utilisateur → `frontend-service` → `client-service` → `resource-server` | `frontend-service` transmet le token utilisateur à `client-service`, qui l'échange auprès de Keycloak | Un service intermédiaire (« clientm ») agit au nom de l'utilisateur, résultat différent suivant ses rôles |
+| **Authorization Code + PKCE + OIDC** | utilisateur ↔ navigateur | `frontend-htmx-service` ou `frontend-vue-service` → `resource-server` | Login web, rôles, UI conditionnelle |
+| **OAuth 2.0 Token Exchange** (RFC 8693) | utilisateur → frontend → `client-service` → `resource-server` | Le frontend transmet le token utilisateur à `client-service`, qui l'échange auprès de Keycloak | Un service intermédiaire (« clientm ») agit au nom de l'utilisateur, résultat différent suivant ses rôles |
 
 ---
 
@@ -23,7 +23,7 @@ sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **J
         ┌──────────────────────────┼──────────────────────────┐
         ▼                          │                          ▼
 ┌─────────────────┐                │                ┌─────────────────┐
-│  client-service │                │                │ frontend-service│
+│  client-service │                │                │frontend-htmx-svc│
 │      :8082      │                │                │      :8083      │
 │  RestClient M2M │                │                │ Thymeleaf + HTMX│
 └────────┬────────┘                │                └────────┬────────┘
@@ -35,10 +35,13 @@ sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **J
                            └─────────────────┘
 ```
 
+Deux interfaces illustrent ce flow : `frontend-htmx-service` (:8083, Thymeleaf + HTMX) et
+`frontend-vue-service` (:8084, Vue.js + API JSON).
+
 Flow **Token Exchange** (utilisateur → frontend → clientm → resource) :
 
 ```
-utilisateur ──login──► frontend-service ──Bearer (token utilisateur)──► client-service (« clientm »)
+utilisateur ──login──► frontend ──Bearer (token utilisateur)──► client-service (« clientm »)
                                                                               │
                                                             token-exchange    │  POST /token (grant_type=
                                                             auprès de Keycloak│  urn:ietf:params:oauth:grant-type:token-exchange)
@@ -70,13 +73,14 @@ utilisateur ──login──► frontend-service ──Bearer (token utilisateu
 docker compose up -d
 curl -fsS http://localhost:8080/realms/demo > /dev/null && echo "Keycloak OK"
 
-# 2. Build complet (3 modules)
+# 2. Build complet (4 modules)
 mvn clean package -DskipTests
 
-# 3. Démarrer les 3 services (3 terminaux)
+# 3. Démarrer les 2 services backend et les deux frontends (4 terminaux)
 mvn -pl resource-server  spring-boot:run   # :8081
 mvn -pl client-service   spring-boot:run   # :8082
-mvn -pl frontend-service spring-boot:run   # :8083
+mvn -pl frontend-htmx-service spring-boot:run # :8083
+mvn -pl frontend-vue-service spring-boot:run  # :8084
 ```
 
 > **Realm déjà importé ?** Relancer avec `docker compose down -v && docker compose up -d`
@@ -85,22 +89,24 @@ mvn -pl frontend-service spring-boot:run   # :8083
 ### Tout-en-un via le script `start-all.sh`
 
 Un script à la racine fait tout d'un coup : réimport du realm (rôles/utilisateurs),
-build Maven, lancement des 3 services en arrière-plan (logs dans `/tmp/*.log`). Le
+build Maven, lancement des 2 services backend et des deux frontends par défaut (logs dans `/tmp/*.log`). Les options
+`--htmx` et `--vue` permettent de ne démarrer qu'une seule interface. Le
 choix du Keycloak est obligatoire : `--docker` utilise le conteneur et `--local`
 utilise l’installation Keycloak `26.7.3` de `/home/fabien/dev/tools/keycloak-26.7.3`.
 
 ```bash
 # Keycloak Docker (le volume est supprimé puis le realm réimporté)
-./start-all.sh --docker
+./start-all.sh --docker --htmx
+./start-all.sh --docker --vue
 ./start-all.sh stop --docker
 
 # Keycloak local (réimporte keycloak/realm-demo.json avant le démarrage)
-./start-all.sh --local
+./start-all.sh --local --vue
 ./start-all.sh stop --local
 ```
 
 Pour utiliser une autre installation locale, définir `KEYCLOAK_HOME` avant le
-lancement. Suivre les logs : `tail -f /tmp/{resource-server,client-service,frontend-service}.log` ;
+lancement. Suivre les logs : `tail -f /tmp/{resource-server,client-service,frontend-htmx-service,frontend-vue-service}.log` ;
 les logs du Keycloak local sont dans `/tmp/keycloak.log`.
 
 ### Compilation native (GraalVM)
@@ -126,12 +132,14 @@ mvn -Pnative -DskipTests -pl resource-server -am package
 # 2) compilation native dans le module
 (cd resource-server  && mvn -Pnative -DskipTests native:compile)
 (cd client-service   && mvn -Pnative -DskipTests native:compile)
-(cd frontend-service && mvn -Pnative -DskipTests native:compile)
+(cd frontend-htmx-service && mvn -Pnative -DskipTests native:compile)
+(cd frontend-vue-service && mvn -Pnative -DskipTests native:compile)
 
 # Exécuter le binaire produit dans target/
 ./resource-server/target/resource-server
 ./client-service/target/client-service
-./frontend-service/target/frontend-service
+./frontend-htmx-service/target/frontend-htmx-service
+./frontend-vue-service/target/frontend-vue-service
 ```
 
 > La première compilation native est longue (plusieurs minutes par module) et
@@ -148,9 +156,8 @@ mvn -Pnative -DskipTests -pl resource-server -am package
 | `bob`   | `bob`   | `USER`          | Espace USER ; zone ADMIN masquée + 403 sur API |
 | `demo`  | `demo`  | `USER`          | Identique à `bob` |
 
-UI conditionnelle via `sec:authorize="hasRole('ADMIN')"` (Thymeleaf Spring Security
-extras). La page `/admin` est doublement protégée : `@PreAuthorize` **et** règle
-`hasRole('ADMIN')` dans la `SecurityFilterChain`.
+Les deux interfaces masquent les actions selon les rôles, mais les endpoints restent protégés
+par `@PreAuthorize` **et** la règle `hasRole('ADMIN')` dans la `SecurityFilterChain`.
 
 ---
 
@@ -175,7 +182,7 @@ Les rôles sont extraits du claim `realm_access.roles` du JWT Keycloak via un
 | GET | `/client/call` | Récupère un token via Client Credentials puis appelle `/api/message`. |
 | GET | `/client/call-as-user` | **Token Exchange** : échange le token utilisateur (Bearer entrant) auprès de Keycloak, puis appelle `/api/admin/dashboard` ou `/api/user/profile` selon le rôle. Nécessite un Bearer valide. |
 
-### `frontend-service` (:8083)
+### `frontend-htmx-service` (:8083)
 
 | Route | Description |
 |---|---|
@@ -185,6 +192,15 @@ Les rôles sont extraits du claim `realm_access.roles` du JWT Keycloak via un
 | `/fragments/*`   | Fragments HTMX (`token`, `message`, `user`, `admin`, `clientm`) |
 | `/fragments/clientm` | Transmet le token utilisateur à `client-service` (flow Token Exchange) |
 | `/logout`        | RP-Initiated Logout (Keycloak) |
+
+### `frontend-vue-service` (:8084)
+
+| Route | Description |
+|---|---|
+| `/` et `/home` | Application Vue.js et informations de session |
+| `/admin` | Page réservée `ADMIN` |
+| `/api/*` | API JSON consommée par Vue (`session`, `access-token`, `message`, `user`, `admin`, `clientm`) |
+| `/logout` | RP-Initiated Logout (Keycloak) |
 
 ---
 
@@ -197,18 +213,18 @@ curl http://localhost:8081/api/public/hello
 # Flow M2M
 curl http://localhost:8082/client/call | jq
 
-# Flow utilisateur : ouvrir http://localhost:8083 dans 2 navigateurs privés
+# Flow utilisateur : ouvrir http://localhost:8083 (HTMX) ou http://localhost:8084 (Vue.js)
 #   - alice/alice → voit les zones USER + ADMIN
 #   - bob/bob     → voit USER, reçoit 403 sur /api/admin/dashboard
 ```
 
 Récupérer un access token utilisateur en ligne de commande (activer
-`directAccessGrantsEnabled` sur `frontend-service` si besoin) :
+`directAccessGrantsEnabled` sur `frontend-htmx-service` si besoin) :
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/demo/protocol/openid-connect/token \
   -d "grant_type=password" -d "username=alice" -d "password=alice" \
-  -d "client_id=frontend-service" -d "client_secret=ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=" | jq -r .access_token)
+  -d "client_id=frontend-htmx-service" -d "client_secret=ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=" | jq -r .access_token)
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/admin/dashboard
 ```
@@ -220,14 +236,15 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/admin/dashboard
 | clientId           | Type         | Flow                                            | Secret                                         | Redirect URI                                       |
 |--------------------|--------------|-------------------------------------------------|------------------------------------------------|----------------------------------------------------|
 | `client-service`   | confidentiel | Client Credentials + Token Exchange (requester) | `a1brNuKzLvEFeqh37BgDaBrK3ucU1IpgSoay3yF2LGA=` | —                                                  |
-| `frontend-service` | confidentiel | Authorization Code                              | `ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=` | `http://localhost:8083/login/oauth2/code/keycloak` |
+| `frontend-htmx-service` | confidentiel | Authorization Code + PKCE | `ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=` | `http://localhost:8083/login/oauth2/code/keycloak` |
+| `frontend-vue-service` | confidentiel | Authorization Code + PKCE | `tV38pqcayswlI0ITYHlXFOEjiJRBXvU+sQH4K2z7TK4=` | `http://localhost:8084/login/oauth2/code/keycloak` |
 
 > Le clientId Keycloak de chaque service correspond à son `spring.application.name`
-> (`client-service`, `frontend-service`), et les secrets sont de vrais secrets aléatoires
+> (`client-service`, `frontend-htmx-service`, `frontend-vue-service`), et les secrets sont de vrais secrets aléatoires
 > (générés via `openssl rand -base64 32`), à ne pas réutiliser tels quels en production.
 >
 > Le client scope `client-service-audience` (mapper d'audience) est affecté par défaut à
-> `frontend-service` : il ajoute `client-service` dans l'`aud` du token utilisateur, ce qui
+> chacun des frontends : il ajoute `client-service` dans l'`aud` du token utilisateur, ce qui
 > autorise `client-service` à échanger ce token pour lui-même via le flow Token Exchange.
 
 ---
@@ -241,7 +258,8 @@ prez_oauth2/
 ├── keycloak/realm-demo.json         # realm + rôles + clients + users
 ├── resource-server/                 # API REST protégée (:8081)
 ├── client-service/                  # Client OAuth2 M2M (:8082)
-└── frontend-service/                # Front Thymeleaf + HTMX, OIDC (:8083)
+├── frontend-htmx-service/           # Front Thymeleaf + HTMX, OIDC (:8083)
+└── frontend-vue-service/            # Front Vue.js + API JSON, OIDC (:8084)
 ```
 
 Particularités Maven :
@@ -264,6 +282,7 @@ Particularités Maven :
 | **`realm_access.roles`**                | Rôles realm Keycloak, mappés en `ROLE_*` côté Spring.                                                                                                                                                                                                                                           |
 | **`sec:authorize`**                     | Attribut Thymeleaf qui rend conditionnellement selon `hasRole(...)`.                                                                                                                                                                                                                            |
 | **HTMX**                                | Le front recharge des fragments HTML sans JS, via `hx-get` / `hx-target`.                                                                                                                                                                                                                       |
+| **Vue.js**                              | Le front consomme des réponses JSON via `fetch` et met à jour son état côté navigateur.                                                                                                                                                                                                         |
 | **RP-Initiated Logout**                 | Logout déclenché par le frontend, propagé à Keycloak.                                                                                                                                                                                                                                           |
 | **JSpecify `@NullMarked`**              | Non-null par défaut au niveau package ; `@Nullable` localement.                                                                                                                                                                                                                                 |
 | **NullAway**                            | Vérifie statiquement la null-safety à la compilation (échec = build cassé).                                                                                                                                                                                                                     |
@@ -272,7 +291,7 @@ Particularités Maven :
 
 ## 11. Déploiement Kubernetes (Helm)
 
-Le projet inclut un chart Helm pour déployer les 3 services Spring dans un cluster Kubernetes (ex: Minikube, Kind), tout en conservant Keycloak dans Docker.
+Le projet inclut un chart Helm pour déployer les 2 services backend et les deux frontends par défaut dans un cluster Kubernetes (ex: Minikube, Kind), tout en conservant Keycloak dans Docker.
 
 ### 11.1 Compilation et préparation des images Docker
 
@@ -301,7 +320,8 @@ Le script `build.sh` compile le projet par défaut. L'option `--docker` construi
 Ceci créera les images suivantes localement :
 - `prez-oauth2/resource-server:latest`
 - `prez-oauth2/client-service:latest`
-- `prez-oauth2/frontend-service:latest`
+- `prez-oauth2/frontend-htmx-service:latest`
+- `prez-oauth2/frontend-vue-service:latest`
 
 ### 11.2 Configuration de la connexion Keycloak
 
@@ -319,14 +339,17 @@ Options du script :
 - `-n, --namespace <ns>` : changer le namespace (défaut : `prez-oauth2`)
 - `-k, --keycloak-host <ip>` : changer l'IP de Keycloak (défaut : `172.17.0.1`)
 - `-i, --ingress-host <host>` : activer l'Ingress avec le host spécifié
+- `-f, --frontend <htmx|vue|both>` : choisir les interfaces à déployer (les deux par défaut)
 
 ### 11.4 Accès aux services
 
 - **Via Ingress** : Si vous avez activé l'Ingress (ex: `-i prez-oauth2.local`), ajoutez le host à votre `/etc/hosts` pointant vers l'IP de votre cluster (127.0.0.1 pour Docker Desktop) et accédez via `http://prez-oauth2.local`.
-- **Via LoadBalancer** : Si votre cluster supporte les LoadBalancers (ex: `minikube tunnel`), accédez via l'IP externe du service `frontend-service`.
+- **Via LoadBalancer** : Si votre cluster supporte les LoadBalancers (ex: `minikube tunnel`), accédez via l'IP externe du frontend choisi.
 - **Via Port-Forward** : Sinon, faites un port-forward :
   ```bash
-  kubectl port-forward service/frontend-service 8083:8083 -n prez-oauth2
+  kubectl port-forward service/frontend-htmx-service 8083:8083 -n prez-oauth2
+  # ou, avec --frontend vue
+  kubectl port-forward service/frontend-vue-service 8084:8084 -n prez-oauth2
   ```
 - **Redirection Keycloak** : Pour que le login fonctionne dans le navigateur, votre machine doit pouvoir résoudre le nom `keycloak` (utilisé par Spring en interne K8s pour la découverte OIDC).
   Ajoutez ceci à votre fichier `/etc/hosts` :
@@ -344,7 +367,7 @@ Options du script :
 | Login OK mais pas de badge ADMIN                                                   | Realm pas réimporté                                                                                                                                                                  | `docker compose down -v && up -d`                                                                                                                               |
 | `401 invalid_token` sur `/api/*`                                                   | Token expiré ou mauvais issuer                                                                                                                                                       | Vérifier `issuer-uri` dans `application.yml`                                                                                                                    |
 | `403` sur `/api/admin/**` avec alice                                               | Realm non importé / mapping rôles KO                                                                                                                                                 | Inspecter le JWT sur https://jwt.io                                                                                                                             |
-| `403` / `invalid_request` sur `/client/call-as-user`                               | Audience `client-service` absente du token utilisateur ou permissions insuffisantes                                                                                                  | Vérifier le client scope `client-service-audience` sur `frontend-service` (`docker compose down -v && up -d` après modif du realm)                              |
+| `403` / `invalid_request` sur `/client/call-as-user`                               | Audience `client-service` absente du token utilisateur ou permissions insuffisantes                                                                                                  | Vérifier le mapper d'audience sur les deux frontends (`docker compose down -v && up -d` après modif du realm)                                                  |
 | `invalid_request: Standard token exchange is not enabled for the requested client` | L'attribut client `standard.token.exchange.enabled` n'est pas activé sur `client-service` (depuis Keycloak 26, le Token Exchange standard doit être activé explicitement par client) | Vérifier `"standard.token.exchange.enabled": "true"` dans les `attributes` de `client-service` (`realm-demo.json`), puis `docker compose down -v && up -d`      |
-| `We are sorry... Invalid redirect uri` à la déconnexion                            | L'URI de post-logout `http://localhost:8083/` utilisée par `OidcClientInitiatedLogoutSuccessHandler` n'est pas déclarée pour `frontend-service`                                      | Vérifier l'attribut `"post.logout.redirect.uris": "http://localhost:8083/*"` sur `frontend-service` (`realm-demo.json`), puis `docker compose down -v && up -d` |
+| `We are sorry... Invalid redirect uri` à la déconnexion                            | L'URI de post-logout du frontend n'est pas déclarée dans Keycloak                                                                                                                      | Vérifier l'attribut `post.logout.redirect.uris` du client concerné dans `realm-demo.json`, puis `docker compose down -v && up -d`                              |
 | Build cassé NullAway                                                               | Violation de nullité                                                                                                                                                                 | Annoter `@Nullable` ou gérer le `null` explicitement                                                                                                            |

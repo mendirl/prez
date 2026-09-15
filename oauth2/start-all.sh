@@ -6,12 +6,12 @@
 #   1. Démarre Keycloak depuis Docker ou une installation locale,
 #      avec réimportation du realm `keycloak/realm-demo.json`.
 #   2. Attend que le realm `demo` réponde.
-#   3. Build complet des 3 modules (sans tests).
-#   4. Lance les 3 services Spring Boot en arrière-plan, logs dans /tmp/*.log.
+#   3. Build complet des 4 modules (sans tests).
+#   4. Lance les 2 services backend et les frontends demandés en arrière-plan.
 #
 # Usage :
-#   ./start-all.sh --docker         # tout (re)lancer avec Keycloak Docker
-#   ./start-all.sh --local          # tout (re)lancer avec Keycloak local
+#   ./start-all.sh --docker         # démarrer les deux interfaces avec Keycloak Docker
+#   ./start-all.sh --local --vue    # démarrer uniquement l'interface Vue.js avec Keycloak local
 #   ./start-all.sh stop --docker    # tout arrêter dans le mode choisi
 #
 # Prérequis : mvn, curl, jq (optionnel), et Docker ou Keycloak local.
@@ -30,12 +30,15 @@ LOCAL_KEYCLOAK_LOG_FILE="$LOG_DIR/keycloak.log"
 REALM_FILE="$SCRIPT_DIR/keycloak/realm-demo.json"
 
 usage() {
-    echo "Usage: $0 --docker|--local"
+    echo "Usage: $0 --docker|--local [--htmx|--vue]"
     echo "       $0 stop --docker|--local"
     echo ""
     echo "Options :"
     echo "  -d, --docker    Utiliser Keycloak dans Docker"
     echo "  -l, --local     Utiliser Keycloak depuis $LOCAL_KEYCLOAK_HOME"
+    echo "      --htmx      Démarrer uniquement frontend-htmx-service (:8083)"
+    echo "      --vue       Démarrer uniquement frontend-vue-service (:8084)"
+    echo "                   Sans option, les deux frontends sont démarrés"
     echo "  -h, --help      Afficher cette aide"
     exit "${1:-1}"
 }
@@ -70,6 +73,8 @@ stop_all() {
 
 KEYCLOAK_MODE=""
 KEYCLOAK_MODE_SET=false
+FRONTEND="both"
+FRONTEND_SET=false
 ACTION="start"
 
 while [[ $# -gt 0 ]]; do
@@ -89,6 +94,22 @@ while [[ $# -gt 0 ]]; do
             fi
             KEYCLOAK_MODE="local"
             KEYCLOAK_MODE_SET=true
+            ;;
+        --htmx)
+            if [[ "$FRONTEND_SET" == true && "$FRONTEND" != "htmx" ]]; then
+                echo "❌ Les options --htmx et --vue sont exclusives." >&2
+                usage
+            fi
+            FRONTEND="htmx"
+            FRONTEND_SET=true
+            ;;
+        --vue)
+            if [[ "$FRONTEND_SET" == true && "$FRONTEND" != "vue" ]]; then
+                echo "❌ Les options --htmx et --vue sont exclusives." >&2
+                usage
+            fi
+            FRONTEND="vue"
+            FRONTEND_SET=true
             ;;
         stop)
             if [[ "$ACTION" == "stop" ]]; then
@@ -116,6 +137,7 @@ if [[ "$ACTION" == "stop" ]]; then
     stop_all
     exit 0
 fi
+
 
 if [[ "$KEYCLOAK_MODE" == "docker" ]]; then
     echo "🧹 [1/4] Réinitialisation de Keycloak Docker (down -v pour réimporter le realm)…"
@@ -158,23 +180,30 @@ done
 echo "🔨 [3/4] Build Maven (clean package, sans tests)…"
 mvn -q -DskipTests clean package
 
-echo "🚀 [4/4] Lancement des 3 services en arrière-plan…"
+echo "🚀 [4/4] Lancement des 2 services backend et des frontends demandés…"
 nohup mvn -pl resource-server  spring-boot:run >"$LOG_DIR/resource-server.log"  2>&1 &
 echo "   resource-server  (:8081) PID=$! — log: $LOG_DIR/resource-server.log"
 nohup mvn -pl client-service   spring-boot:run >"$LOG_DIR/client-service.log"   2>&1 &
 echo "   client-service   (:8082) PID=$! — log: $LOG_DIR/client-service.log"
-nohup mvn -pl frontend-service spring-boot:run >"$LOG_DIR/frontend-service.log" 2>&1 &
-echo "   frontend-service (:8083) PID=$! — log: $LOG_DIR/frontend-service.log"
+if [[ "$FRONTEND" == "htmx" || "$FRONTEND" == "both" ]]; then
+    nohup mvn -pl frontend-htmx-service spring-boot:run >"$LOG_DIR/frontend-htmx-service.log" 2>&1 &
+    echo "   frontend-htmx-service (:8083) PID=$! — log: $LOG_DIR/frontend-htmx-service.log"
+fi
+if [[ "$FRONTEND" == "vue" || "$FRONTEND" == "both" ]]; then
+    nohup mvn -pl frontend-vue-service spring-boot:run >"$LOG_DIR/frontend-vue-service.log" 2>&1 &
+    echo "   frontend-vue-service (:8084) PID=$! — log: $LOG_DIR/frontend-vue-service.log"
+fi
 
 cat <<EOF
 
 ✅ Démo lancée.
 
    • Keycloak ($KEYCLOAK_MODE) : http://localhost:8080  (admin / admin)
-   • Frontend       : http://localhost:8083  (alice/alice, bob/bob, demo/demo)
+   • Frontend HTMX : http://localhost:8083  ($([[ "$FRONTEND" == "vue" ]] && echo "non démarré" || echo "alice/alice, bob/bob, demo/demo"))
+   • Frontend Vue  : http://localhost:8084  ($([[ "$FRONTEND" == "htmx" ]] && echo "non démarré" || echo "alice/alice, bob/bob, demo/demo"))
    • Resource API   : http://localhost:8081/api/public/hello
    • Client M2M     : http://localhost:8082/client/call
 
-   Logs : tail -f $LOG_DIR/{resource-server,client-service,frontend-service}.log
+   Logs : tail -f $LOG_DIR/{resource-server,client-service,frontend-htmx-service,frontend-vue-service}.log
    Stop : ./start-all.sh stop --$KEYCLOAK_MODE
 EOF
