@@ -73,12 +73,9 @@
     {
       "clientId": "frontend-vue-service",
       "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "tV38pqcayswlI0ITYHlXFOEjiJRBXvU+sQH4K2z7TK4=",
       "redirectUris": [
-        "http://localhost:8084/login/oauth2/code/keycloak",
-        "http://prez-oauth2.local/login/oauth2/code/keycloak",
-        "http://prez-oauth2.local/vue/login/oauth2/code/keycloak"
+        "http://localhost:8084/*",
+        "http://prez-oauth2.local/*"
       ],
       "webOrigins": [
         "http://localhost:8084",
@@ -87,7 +84,7 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "publicClient": false,
+      "publicClient": true,
       "protocol": "openid-connect",
       "attributes": {
         "pkce.code.challenge.method": "S256",

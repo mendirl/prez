@@ -6,6 +6,7 @@ NAMESPACE="prez-oauth2"
 RELEASE_NAME="prez-oauth2"
 CHART_PATH="./helm/prez-oauth2"
 KEYCLOAK_HOST="172.17.0.1"
+KEYCLOAK_PUBLIC_URL="http://localhost:8080"
 INGRESS_HOST=""
 FRONTEND="both"
 
@@ -15,6 +16,7 @@ usage() {
     echo "Options:"
     echo "  -n, --namespace <ns>       Namespace Kubernetes (défaut : $NAMESPACE)"
     echo "  -k, --keycloak-host <ip>   IP de l'hôte pour Keycloak (défaut : $KEYCLOAK_HOST)"
+    echo "  -u, --keycloak-public-url <url> URL Keycloak accessible depuis le navigateur (défaut : $KEYCLOAK_PUBLIC_URL)"
     echo "  -i, --ingress-host <host>  Activer l'Ingress avec ce host (ex: prez-oauth2.local)"
     echo "  -f, --frontend <type>      Frontend à déployer : htmx, vue ou both (défaut : $FRONTEND)"
     echo "  -h, --help                 Afficher cette aide"
@@ -30,6 +32,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -k|--keycloak-host)
             KEYCLOAK_HOST="$2"
+            shift 2
+            ;;
+        -u|--keycloak-public-url)
+            KEYCLOAK_PUBLIC_URL="$2"
             shift 2
             ;;
         -i|--ingress-host)
@@ -58,6 +64,7 @@ fi
 echo "=== Déploiement de prez-oauth2 sur Kubernetes ==="
 echo "Namespace      : $NAMESPACE"
 echo "Keycloak Host  : $KEYCLOAK_HOST"
+echo "Keycloak URL   : $KEYCLOAK_PUBLIC_URL"
 echo "Frontend       : $FRONTEND"
 if [[ -n "$INGRESS_HOST" ]]; then
     echo "Ingress Host   : $INGRESS_HOST"
@@ -86,6 +93,7 @@ echo "Installation/Mise à jour du chart Helm (release: $RELEASE_NAME)..."
 HELM_OPTS=(
     "--namespace" "$NAMESPACE"
     "--set" "keycloak.host=$KEYCLOAK_HOST"
+    "--set" "keycloak.publicUrl=$KEYCLOAK_PUBLIC_URL"
     "--set" "frontend.type=$FRONTEND"
 )
 

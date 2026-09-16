@@ -13,6 +13,20 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: resource-server
+                port:
+                  number: {{ .Values.resourceServer.service.port }}
+          - path: /client
+            pathType: Prefix
+            backend:
+              service:
+                name: client-service
+                port:
+                  number: {{ .Values.clientService.service.port }}
           {{- if eq .Values.frontend.type "both" }}
           - path: /vue
             pathType: Prefix

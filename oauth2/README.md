@@ -36,7 +36,8 @@ sur une stack moderne : **Java 25**, **Spring Boot 4.0.5**, **Maven 4.1.0**, **J
 ```
 
 Deux interfaces illustrent ce flow : `frontend-htmx-service` (:8083, Thymeleaf + HTMX) et
-`frontend-vue-service` (:8084, Vue.js + API JSON).
+`frontend-vue-service` (:8084, SPA Vue.js). La SPA réalise elle-même le flow Authorization Code + PKCE,
+conserve les jetons en mémoire du navigateur et appelle directement les APIs avec l’`access token`.
 
 Flow **Token Exchange** (utilisateur → frontend → clientm → resource) :
 
@@ -197,10 +198,12 @@ Les rôles sont extraits du claim `realm_access.roles` du JWT Keycloak via un
 
 | Route | Description |
 |---|---|
-| `/` et `/home` | Application Vue.js et informations de session |
-| `/admin` | Page réservée `ADMIN` |
-| `/api/*` | API JSON consommée par Vue (`session`, `access-token`, `message`, `user`, `admin`, `clientm`) |
-| `/logout` | RP-Initiated Logout (Keycloak) |
+| `/` | SPA Vue.js autonome |
+| `/spa-config.json` | Configuration publique des URLs Keycloak et API |
+
+La SPA utilise l’adaptateur JavaScript fourni par Keycloak : elle réalise le callback OIDC,
+renouvelle l’`access token` et appelle directement `resource-server` et `client-service`. Les
+tokens ne sont pas persistés et disparaissent au rechargement de la page ou à la déconnexion.
 
 ---
 
@@ -237,11 +240,12 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/admin/dashboard
 |--------------------|--------------|-------------------------------------------------|------------------------------------------------|----------------------------------------------------|
 | `client-service`   | confidentiel | Client Credentials + Token Exchange (requester) | `a1brNuKzLvEFeqh37BgDaBrK3ucU1IpgSoay3yF2LGA=` | —                                                  |
 | `frontend-htmx-service` | confidentiel | Authorization Code + PKCE | `ItZGNqwyezy7OGUQftBoftcYS4QsNGe1gQQ4xo+WiYU=` | `http://localhost:8083/login/oauth2/code/keycloak` |
-| `frontend-vue-service` | confidentiel | Authorization Code + PKCE | `tV38pqcayswlI0ITYHlXFOEjiJRBXvU+sQH4K2z7TK4=` | `http://localhost:8084/login/oauth2/code/keycloak` |
+| `frontend-vue-service` | public | Authorization Code + PKCE | — | `http://localhost:8084/*` |
 
 > Le clientId Keycloak de chaque service correspond à son `spring.application.name`
-> (`client-service`, `frontend-htmx-service`, `frontend-vue-service`), et les secrets sont de vrais secrets aléatoires
-> (générés via `openssl rand -base64 32`), à ne pas réutiliser tels quels en production.
+> (`client-service`, `frontend-htmx-service`, `frontend-vue-service`). Les clients confidentiels
+> ont des secrets aléatoires (générés via `openssl rand -base64 32`), à ne pas réutiliser tels
+> quels en production ; une SPA est un client public et ne possède donc pas de secret.
 >
 > Le client scope `client-service-audience` (mapper d'audience) est affecté par défaut à
 > chacun des frontends : il ajoute `client-service` dans l'`aud` du token utilisateur, ce qui
@@ -259,7 +263,7 @@ prez_oauth2/
 ├── resource-server/                 # API REST protégée (:8081)
 ├── client-service/                  # Client OAuth2 M2M (:8082)
 ├── frontend-htmx-service/           # Front Thymeleaf + HTMX, OIDC (:8083)
-└── frontend-vue-service/            # Front Vue.js + API JSON, OIDC (:8084)
+└── frontend-vue-service/            # SPA Vue.js, OIDC direct (:8084)
 ```
 
 Particularités Maven :
@@ -275,14 +279,14 @@ Particularités Maven :
 | Concept                                 | Description                                                                                                                                                                                                                                                                                     |
 |-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Client Credentials**                  | Flow OAuth2 sans utilisateur, service-account du client.                                                                                                                                                                                                                                        |
-| **Authorization Code + PKCE**           | Flow standard OIDC : redirection navigateur → code → token, sécurisé par un `code_verifier`/`code_challenge` (S256). Activé côté Spring via `OAuth2AuthorizationRequestCustomizers.withPkce()` et exigé côté Keycloak via `pkce.code.challenge.method=S256`.                                    |
+| **Authorization Code + PKCE**           | Flow standard OIDC : redirection navigateur → code → token, sécurisé par un `code_verifier`/`code_challenge` (S256). Activé côté Spring pour HTMX et par l’adaptateur Keycloak JavaScript pour la SPA ; Keycloak exige `pkce.code.challenge.method=S256`.                                    |
 | **OIDC**                                | Couche d'identité sur OAuth2 : ID Token JWT décrivant l'utilisateur.                                                                                                                                                                                                                            |
 | **OAuth 2.0 Token Exchange (RFC 8693)** | Un client (`client-service`) échange un token reçu (émis pour un autre client) contre un nouveau token émis pour lui-même, en conservant l'utilisateur (`sub`). Exposé côté Spring via `TokenExchangeOAuth2AuthorizedClientProvider` (grant `urn:ietf:params:oauth:grant-type:token-exchange`). |
 | **JWKS**                                | Le resource-server valide les JWT via la clé publique exposée par Keycloak.                                                                                                                                                                                                                     |
 | **`realm_access.roles`**                | Rôles realm Keycloak, mappés en `ROLE_*` côté Spring.                                                                                                                                                                                                                                           |
 | **`sec:authorize`**                     | Attribut Thymeleaf qui rend conditionnellement selon `hasRole(...)`.                                                                                                                                                                                                                            |
 | **HTMX**                                | Le front recharge des fragments HTML sans JS, via `hx-get` / `hx-target`.                                                                                                                                                                                                                       |
-| **Vue.js**                              | Le front consomme des réponses JSON via `fetch` et met à jour son état côté navigateur.                                                                                                                                                                                                         |
+| **SPA Vue.js**                          | Client public : le navigateur réalise PKCE, conserve les tokens uniquement en mémoire, consomme les APIs via `fetch` et met à jour son état sans rechargement.                                                                                                                                      |
 | **RP-Initiated Logout**                 | Logout déclenché par le frontend, propagé à Keycloak.                                                                                                                                                                                                                                           |
 | **JSpecify `@NullMarked`**              | Non-null par défaut au niveau package ; `@Nullable` localement.                                                                                                                                                                                                                                 |
 | **NullAway**                            | Vérifie statiquement la null-safety à la compilation (échec = build cassé).                                                                                                                                                                                                                     |
@@ -327,6 +331,9 @@ Ceci créera les images suivantes localement :
 
 Le chart Helm crée un service `keycloak` dans K8s qui pointe vers l'hôte Docker.
 Par défaut, il utilise l'IP `172.17.0.1`. Si votre IP de passerelle Docker est différente, modifiez le fichier `helm/prez-oauth2/values.yaml` ou passez l'argument `--set`.
+La SPA reçoit l’URL accessible depuis le navigateur dans `keycloak.publicUrl` (par défaut
+`http://localhost:8080`) ; fournissez-la avec `--keycloak-public-url https://...` si Keycloak
+est exposé sur une autre adresse.
 
 ### 11.3 Installation du Chart (via script)
 ...
@@ -338,12 +345,13 @@ Par défaut, il utilise l'IP `172.17.0.1`. Si votre IP de passerelle Docker est 
 Options du script :
 - `-n, --namespace <ns>` : changer le namespace (défaut : `prez-oauth2`)
 - `-k, --keycloak-host <ip>` : changer l'IP de Keycloak (défaut : `172.17.0.1`)
+- `-u, --keycloak-public-url <url>` : URL Keycloak accessible depuis le navigateur (défaut : `http://localhost:8080`)
 - `-i, --ingress-host <host>` : activer l'Ingress avec le host spécifié
 - `-f, --frontend <htmx|vue|both>` : choisir les interfaces à déployer (les deux par défaut)
 
 ### 11.4 Accès aux services
 
-- **Via Ingress** : Si vous avez activé l'Ingress (ex: `-i prez-oauth2.local`), ajoutez le host à votre `/etc/hosts` pointant vers l'IP de votre cluster (127.0.0.1 pour Docker Desktop) et accédez via `http://prez-oauth2.local`.
+- **Via Ingress** : Si vous avez activé l'Ingress (ex: `-i prez-oauth2.local`), ajoutez le host à votre `/etc/hosts` pointant vers l'IP de votre cluster (127.0.0.1 pour Docker Desktop) et accédez via `http://prez-oauth2.local`. L’Ingress publie aussi `/api` et `/client` pour les appels directs de la SPA.
 - **Via LoadBalancer** : Si votre cluster supporte les LoadBalancers (ex: `minikube tunnel`), accédez via l'IP externe du frontend choisi.
 - **Via Port-Forward** : Sinon, faites un port-forward :
   ```bash
@@ -351,7 +359,7 @@ Options du script :
   # ou, avec --frontend vue
   kubectl port-forward service/frontend-vue-service 8084:8084 -n prez-oauth2
   ```
-- **Redirection Keycloak** : Pour que le login fonctionne dans le navigateur, votre machine doit pouvoir résoudre le nom `keycloak` (utilisé par Spring en interne K8s pour la découverte OIDC).
+- **Redirection Keycloak** : Pour le frontend HTMX, votre machine doit pouvoir résoudre le nom `keycloak` utilisé par Spring en interne K8s. Pour la SPA, `keycloak.publicUrl` doit être une URL Keycloak accessible depuis le navigateur et sa redirect URI doit être déclarée dans le realm.
   Ajoutez ceci à votre fichier `/etc/hosts` :
   ```text
   127.0.0.1 keycloak

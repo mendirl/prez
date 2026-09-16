@@ -34,21 +34,17 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    ClientRegistrationRepository clientRegistrationRepository) throws Exception {
-        http
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/css/**", "/webjars/**", "/error").permitAll()
-                .requestMatchers("/admin/**", "/fragments/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-            .oauth2Login(oauth -> oauth
-                .defaultSuccessUrl("/home", true)
-                .authorizationEndpoint(a -> a.authorizationRequestResolver(
-                        pkceAuthorizationRequestResolver(clientRegistrationRepository)))
-                .userInfoEndpoint(u -> u.oidcUserService(keycloakOidcUserService()))
-            )
-            .logout(logout -> logout
-                .logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository))
-            );
+        http.authorizeHttpRequests(auth -> auth.requestMatchers("/", "/css/**", "/webjars/**", "/error")
+                        .permitAll()
+                        .requestMatchers("/admin/**", "/fragments/admin/**")
+                        .hasRole("ADMIN")
+                        .anyRequest()
+                        .authenticated())
+                .oauth2Login(oauth -> oauth.defaultSuccessUrl("/home", true)
+                        .authorizationEndpoint(a -> a.authorizationRequestResolver(pkceAuthorizationRequestResolver(
+                                clientRegistrationRepository)))
+                        .userInfoEndpoint(u -> u.oidcUserService(keycloakOidcUserService())))
+                .logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)));
         return http.build();
     }
 
@@ -116,10 +112,9 @@ public class SecurityConfig {
         }
     }
 
-    private OidcClientInitiatedLogoutSuccessHandler oidcLogoutSuccessHandler(
-            ClientRegistrationRepository clientRegistrationRepository) {
-        OidcClientInitiatedLogoutSuccessHandler handler =
-                new OidcClientInitiatedLogoutSuccessHandler(clientRegistrationRepository);
+    private OidcClientInitiatedLogoutSuccessHandler oidcLogoutSuccessHandler(ClientRegistrationRepository clientRegistrationRepository) {
+        OidcClientInitiatedLogoutSuccessHandler handler = new OidcClientInitiatedLogoutSuccessHandler(
+                clientRegistrationRepository);
         handler.setPostLogoutRedirectUri("{baseUrl}/");
         log.info("Déconnexion : redirection vers Keycloak (end_session_endpoint) puis retour sur {baseUrl}/");
         return handler;
@@ -131,11 +126,10 @@ public class SecurityConfig {
      * n'active PKCE que pour les clients publics ; ici on le force via
      * `OAuth2AuthorizationRequestCustomizers.withPkce()` (code_challenge S256).
      */
-    private OAuth2AuthorizationRequestResolver pkceAuthorizationRequestResolver(
-            ClientRegistrationRepository clientRegistrationRepository) {
-        DefaultOAuth2AuthorizationRequestResolver resolver =
-                new DefaultOAuth2AuthorizationRequestResolver(
-                        clientRegistrationRepository, "/oauth2/authorization");
+    private OAuth2AuthorizationRequestResolver pkceAuthorizationRequestResolver(ClientRegistrationRepository clientRegistrationRepository) {
+        DefaultOAuth2AuthorizationRequestResolver resolver = new DefaultOAuth2AuthorizationRequestResolver(
+                clientRegistrationRepository,
+                "/oauth2/authorization");
         resolver.setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce());
         return resolver;
     }

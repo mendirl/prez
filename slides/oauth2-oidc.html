@@ -30,6 +30,11 @@
       line-height: 1.35;
     }
 
+    .remark-slide-content.flow-diagram pre code {
+      font-size: 0.62em;
+      line-height: 1.3;
+    }
+
     .remark-slide-content table {
       font-size: 0.8em;
     }
@@ -70,7 +75,7 @@ OAuth2 délègue l'**autorisation** d'accès aux APIs ; OIDC ajoute l'**identit�
 Le projet illustre ces rôles dans trois situations :
 
 - **Client Credentials** : `client-service` agit seul, de machine à machine ;
-- **Authorization Code + PKCE + OIDC** : `frontend-htmx-service` ou `frontend-vue-service` connecte l'utilisateur ;
+- **Authorization Code + PKCE + OIDC** : `frontend-vue-service` connecte l'utilisateur ; `frontend-htmx-service` illustre l'alternative BFF ;
 - **Token Exchange** : `client-service` obtient un jeton adapté pour agir au nom de cet utilisateur.
 
 ---
@@ -90,23 +95,29 @@ Demander le scope `openid` active OIDC et permet de recevoir un `ID token`. Dans
 
 ---
 
+class: compact
+
 ## Les composants de la démonstration
 
 ```
-                     ┌──────────────┐
-                     │   Keycloak   │
-                     │    :8080     │
-                     └──────┬───────┘
-          émet les jetons   │
-       ┌────────────────────┼────────────────────┐
-       ▼                    ▼                    ▼
-client-service   frontend-htmx-service   frontend-vue-service   resource-server
-    :8082                :8083                  :8084               :8081
+                           ┌──────────────┐
+                           │   Keycloak   │
+                           │    :8080     │
+                           └──────┬───────┘
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+         OAuth2 / OIDC       OAuth2 / OIDC     OAuth2 / OIDC
+              │                  │                  │
+              ▼                  ▼                  ▼
+       client-service   frontend-vue-service   frontend-htmx-service
+           :8082               :8084                  :8083
+
+       Keycloak ───────────── JWKS ───────────► resource-server :8081
 ```
 
 - **Keycloak** : authorization server et fournisseur OIDC ;
-- **frontend-htmx-service** : application web Thymeleaf/HTMX ;
-- **frontend-vue-service** : application web Vue.js avec API JSON ;
+- **frontend-vue-service** : SPA Vue.js, client OIDC public dans le navigateur ;
+- **frontend-htmx-service** : alternative web Thymeleaf/HTMX avec session côté serveur ;
 - **client-service** : client machine-à-machine et intermédiaire ;
 - **resource-server** : API protégée qui valide les JWT.
 
@@ -122,7 +133,7 @@ Un jeton contient notamment :
 {
   "iss": "http://localhost:8080/realms/demo",
   "sub": "...",
-  "azp": "frontend-htmx-service",
+  "azp": "frontend-vue-service",
   "realm_access": { "roles": ["USER", "ADMIN"] }
 }
 ```
@@ -161,7 +172,7 @@ class: compact
   "iss": "http://localhost:8080/realms/demo",
   "sub": "identifiant-stable-du-sujet",
   "aud": ["client-service"],
-  "azp": "frontend-htmx-service",
+  "azp": "frontend-vue-service",
   "exp": 1760000000,
   "scope": "openid profile email",
   "realm_access": { "roles": ["USER", "ADMIN"] }
@@ -184,11 +195,11 @@ Les claims effectivement présents dépendent du flow, des scopes et des mappers
 
 | Jeton | Destinataire et usage | Ne doit pas servir à |
 |---|---|---|
-| **Access token** | API / resource server ; transmis dans `Authorization: Bearer ...` | afficher l'identité dans le navigateur |
-| **ID token** | client OIDC ; identité de la session (`sub`, nom, e-mail...) | autoriser un appel API |
-| **Refresh token** | client OAuth2 ; obtenir de nouveaux jetons | être envoyé à une API ou au navigateur |
+| **Access token** | API / resource server ; transmis dans `Authorization: Bearer ...` | être confondu avec une preuve d'identité UI |
+| **ID token** | client OIDC ; identité de l'utilisateur (`sub`, nom, e-mail...) | autoriser un appel API |
+| **Refresh token** | client OAuth2 ; obtenir de nouveaux jetons | être envoyé à une API ou stocké durablement dans le navigateur |
 
-Dans le flow web, les deux frontends utilisent l'ID token pour la connexion OIDC et l'access token pour les appels aux services. Dans Client Credentials, il n'y a pas d'utilisateur ni d'ID token : le `sub` représente le compte de service.
+Dans la SPA Vue, les jetons restent en mémoire : l'ID token sert à présenter l'identité et l'access token aux appels API. Dans Client Credentials, il n'y a pas d'utilisateur ni d'ID token : le `sub` représente le compte de service.
 
 ---
 
@@ -379,55 +390,79 @@ Client ── code + client_secret ──► /token ──► access token
 
 Pour la connexion d'un utilisateur dans le navigateur.
 
-```
-navigateur ──► frontend-htmx-service ──► Keycloak
-     ▲               │                 │
-     └── session ────┴── code + PKCE ───┘
-                         │
-                  access token + ID token
+```text
+navigateur : Vue.js + keycloak-js ──► Keycloak
+              ▲                         │
+              └── callback?code&state ──┘
+                      │
+          access token + ID token en mémoire
 ```
 
-- le navigateur est redirigé vers Keycloak ;
-- Keycloak renvoie un **code** ;
-- le frontend échange le code contre les jetons ;
+- Vue appelle `keycloak.login()` et le navigateur est redirigé vers Keycloak ;
+- Keycloak renvoie un **code** au callback de la SPA ;
+- `keycloak-js` échange le code contre les jetons directement dans le navigateur ;
 - PKCE relie le code au navigateur via `code_verifier` / `code_challenge` (S256).
 
 ---
 
+class: flow-diagram
+
 ## Authorization Code + PKCE — échanges
 
 ```text
- Navigateur         frontend-htmx-service                Keycloak             resource-server
-     │                        │                              │                       │
-     ├─ page protégée ────────►                              │                       │
-     ◄─ 302 /authorize ───────┤                              │                       │
-     ├─ GET /authorize?code_challenge ──────────────────────►│                       │
-     │                        │                              │                       │
-     │       authentification utilisateur                    │                       │
-     ◄─ 302 callback?code&state ──────────────────────────────┤                       │
-     ├─ GET /login/oauth2/code/... ─►                        │                       │
-     │                        ├─ POST /token : code + code_verifier ──────►│         │
-     │                        ◄─ ID token + access token + refresh token ─┤         │
-     ◄─ session applicative ───┤                              │                       │
-     ├─ action utilisateur ────►                              │                       │
-     │                        ├─ Bearer <access token> ───────────────────►│
-     │                        ◄─ réponse API ──────────────────────────────┤
+ Navigateur : Vue.js + keycloak-js            Keycloak             resource-server
+                 │                                │                       │
+                 ├─ /authorize?code_challenge ───►│                       │
+                 │                                │                       │
+                 │     authentification utilisateur                        │
+                 ◄─ callback?code&state ──────────┤                       │
+                 ├─ POST /token : code + code_verifier ───────►│         │
+                 ◄─ ID token + access token ───────────────────┤         │
+                 ├─ fetch : Bearer <access token> ───────────────────────►│
+                 ◄─ réponse API ──────────────────────────────────────────┤
 ```
 
-Le navigateur ne manipule jamais le `client_secret` ni le `code_verifier` ; l'échange des jetons est effectué par le backend du frontend.
+Le navigateur ne possède pas de `client_secret` : `frontend-vue-service` est un client public. Il conserve le `code_verifier` pour l'échange, puis les tokens uniquement en mémoire.
+
+---
+
+class: compact
+
+## `state`, `nonce` et PKCE : trois protections complémentaires
+
+| Mécanisme | Envoyé à Keycloak | Vérification côté client | Protège contre |
+|---|---|---|---|
+| `state` | Demande `/authorize` | Même valeur au callback | Réponse non sollicitée / CSRF |
+| `nonce` | Demande `/authorize` | Même valeur dans l'`ID token` | Rejeu ou substitution d'`ID token` |
+| PKCE | `code_challenge` (`S256`) | `code_verifier` à `/token` | Interception du `authorization code` |
+
+```text
+Client : conserve state, nonce et code_verifier
+    │
+    ├── /authorize?state&nonce&code_challenge ──► Keycloak
+    ◄── callback?code&state ─────────────────────┤
+    └── /token : code + code_verifier ──────────► Keycloak
+         ◄── ID token contenant le nonce ────────┤
+```
+
+- `state` associe le retour navigateur à la demande initiée ;
+- `nonce` est une protection **OIDC** : il lie l'`ID token` à cette authentification ;
+- le `code_verifier` reste secret et n'est jamais envoyé à `/authorize`.
+
+Pour Authorization Code + OIDC, utiliser les trois mécanismes : aucun ne remplace les deux autres.
 
 ---
 
 ## Authorization Code — 1. Redirection vers Keycloak
 
-L'utilisateur accède à une page protégée du `frontend-htmx-service`.
+L'utilisateur ouvre la SPA `frontend-vue-service` et choisit de se connecter.
 
-1. Spring Security redirige le navigateur vers `/oauth2/authorization/keycloak`.
-2. Le frontend construit la demande d'autorisation : `client_id=frontend-htmx-service`, URI de retour et scopes `openid profile email`.
-3. Il génère un `state`, un `code_verifier` secret et le `code_challenge` dérivé en `S256`.
+1. Le bouton Vue appelle `keycloak.login()`.
+2. `keycloak-js` construit la demande : `client_id=frontend-vue-service`, URI de retour et scopes `openid profile email`.
+3. L'adaptateur génère un `state`, un `nonce`, un `code_verifier` secret et le `code_challenge` dérivé en `S256`.
 4. Le navigateur est redirigé vers Keycloak avec le challenge, mais **jamais** avec le verifier.
 
-Le `state` protège le retour contre une réponse d'autorisation non sollicitée ; PKCE protège le code intercepté.
+Le `state` protège le retour contre une réponse d'autorisation non sollicitée ; le `nonce` lie l'ID token ; PKCE protège le code intercepté.
 
 ---
 
@@ -436,24 +471,24 @@ Le `state` protège le retour contre une réponse d'autorisation non sollicitée
 ```
 navigateur ──► Keycloak : authentification alice / bob
      │
-     └── 302 vers /login/oauth2/code/keycloak?code=...&state=... ──► frontend-htmx-service
+     └── 302 vers http://localhost:8084/?code=...&state=... ──► SPA Vue.js
 ```
 
 - Keycloak authentifie l'utilisateur et porte ses rôles `USER` / `ADMIN` dans le realm `demo`.
-- Il vérifie l'URI de redirection déclarée pour `frontend-htmx-service`.
+- Il vérifie l'URI de redirection déclarée pour `frontend-vue-service`.
 - Il délivre un **authorization code** court, à usage unique ; aucun JWT n'est encore visible dans l'URL de retour.
 
 ---
 
-## Authorization Code — 3. Échange serveur à serveur
+## Authorization Code — 3. Échange protégé dans la SPA
 
-Le callback est traité par le `frontend-htmx-service`, qui échange le code auprès de Keycloak :
+Après le callback, `keycloak-js` échange le code auprès de Keycloak depuis le navigateur :
 
 ```text
 grant_type=authorization_code
 code=...
-redirect_uri=http://localhost:8083/login/oauth2/code/keycloak
-client_secret=••••••••
+redirect_uri=http://localhost:8084/
+client_id=frontend-vue-service
 code_verifier=...
 ```
 
@@ -461,23 +496,74 @@ Après validation du code, du client et de PKCE, Keycloak renvoie :
 
 | Jeton | Usage dans l'exemple |
 |---|---|
-| *ID token* | identité OIDC et affichage de l'utilisateur connecté |
-| *Access token* | appels Bearer vers `resource-server` et `client-service` |
-| *Refresh token* | renouvellement éventuel de la session OAuth2 |
+| *ID token* | identité OIDC affichée par la SPA |
+| *Access token* | appels `fetch` Bearer vers `resource-server` et `client-service` |
+| *Refresh token* | renouvellement en mémoire géré par `keycloak-js` |
+
+---
+
+class: compact
+
+## Authorization Code + PKCE — SPA Vue.js
+
+`frontend-vue-service` est un **client public** : l'adaptateur Keycloak est exécuté dans le navigateur, sans `client_secret`.
+
+```text
+ Navigateur : Vue.js + keycloak-js                 Keycloak
+             │                                       │
+             ├─ /authorize?client_id&state&nonce ───►│
+             │   &code_challenge=S256                │
+             │                                       │
+             ◄─ /vue/?code=...&state=... ───────────┤
+             │                                       │
+             ├─ /token : code + code_verifier ─────►│
+             ◄─ ID token + access token ────────────┤
+             │
+             └─ Bearer <access token> ──► APIs
+```
+
+- le bouton de connexion appelle `keycloak.login()` ;
+- `keycloak-js` crée et conserve `state`, `nonce` et le `code_verifier` ;
+- après le callback vers la racine de la SPA (`/` ou `/vue/` via Ingress), il vérifie la réponse et échange le code directement depuis le navigateur ;
+- les tokens restent en mémoire dans la SPA : ne pas les stocker dans `localStorage`.
+
+---
+
+class: compact
+
+## SPA Vue.js — identité, renouvellement et appels directs
+
+| Étape | Ce que fait `frontend-vue-service` |
+|---|---|
+| Initialisation | Charge `/spa-config.json`, puis `keycloak.init({ onLoad: 'check-sso', pkceMethod: 'S256' })` |
+| Identité | Lit les claims de l'`access token` (`preferred_username`, `realm_access.roles`) et affiche l'`ID token` |
+| Renouvellement | Appelle `updateToken(30)` avant une requête pour renouveler le jeton bientôt expiré |
+| API | Utilise `fetch` avec `Authorization: Bearer <access token>` vers `resource-server` ou `client-service` |
+
+```text
+Vue.js dans le navigateur ── Bearer <access token> ──► resource-server
+                                                        └─ validation JWT + RBAC
+                          ── Bearer <access token> ──► client-service
+                                                        └─ validation JWT + RBAC
+```
+
+Les APIs autorisent l'origine de la SPA via CORS, mais conservent la validation du JWT et les rôles : le contrôle de l'interface Vue ne remplace jamais celui du serveur.
 
 ---
 
 ## Authorization Code — 4. Rôles et appels API
 
-Spring conserve l'utilisateur OIDC dans la session du frontend. Les rôles realm ne figurant pas nécessairement dans l'ID token, les deux frontends analysent leur **access token** et convertissent `realm_access.roles` en `ROLE_USER` / `ROLE_ADMIN`.
+La SPA Vue lit les rôles dans son **access token** en mémoire et affiche les zones `USER` / `ADMIN`. Avant chaque appel, `keycloak-js` renouvelle le token si nécessaire.
 
 ```
-frontend-htmx-service ── Bearer <access token utilisateur> ──► resource-server
+Vue.js dans le navigateur ── Bearer <access token utilisateur> ──► resource-server
 ```
 
 - `/api/user/profile` accepte `USER` ou `ADMIN` ;
 - `/api/admin/dashboard` exige `ADMIN` ;
-- la page `/admin` applique cette même règle dans la chaîne HTTP et avec `@PreAuthorize`.
+- l'affichage conditionnel de Vue améliore l'interface, mais le serveur prend toujours la décision d'autorisation.
+
+`frontend-htmx-service` est l'alternative BFF : Spring y conserve la session et appelle les APIs à la place du navigateur.
 
 ---
 
@@ -490,9 +576,9 @@ frontend-htmx-service ── Bearer <access token utilisateur> ──► resourc
 | `/api/user/profile` | `USER` ou `ADMIN` |
 | `/api/admin/dashboard` | `ADMIN` |
 
-Les rôles Keycloak sont lus dans `realm_access.roles` et mappés par Spring Security.
+Vue lit les rôles Keycloak dans `realm_access.roles` pour afficher les actions disponibles ; Spring Security les mappe côté APIs.
 
-Dans le frontend, la page `/admin` est protégée dans la chaîne de sécurité et par `@PreAuthorize("hasRole('ADMIN')")`.
+Une action masquée dans la SPA n'est pas une protection : `resource-server` impose `ROLE_USER` / `ROLE_ADMIN` à chaque requête Bearer.
 
 ---
 
@@ -501,36 +587,36 @@ Dans le frontend, la page `/admin` est protégée dans la chaîne de sécurité 
 Un service agit **au nom de l'utilisateur** sans transmettre son jeton tel quel jusqu'à l'API.
 
 ```
-utilisateur → frontend → client-service → Keycloak
-                                  │              │
-                                  └─ nouveau JWT ┘
-                                         │
-                                         ▼
-                                   resource-server
+utilisateur → SPA Vue.js → client-service → Keycloak
+                                │              │
+                                └─ nouveau JWT ┘
+                                       │
+                                       ▼
+                                 resource-server
 ```
 
 `client-service` échange le jeton utilisateur contre un nouveau jeton dont il est l'audience, tout en conservant l'utilisateur représenté.
 
 ---
 
+class: flow-diagram
+
 ## Token Exchange RFC 8693 — échanges
 
 ```text
- Navigateur    frontend-htmx-service     client-service           Keycloak          resource-server
-     │                   │                     │                    │                    │
-     ├─ action HTMX ────►│                     │                    │                    │
-     │                   ├─ GET /client/call-as-user ──────────────►│                    │
-     │                   │  Bearer <access token utilisateur>      │                    │
-     │                   │                     ├─ valide le JWT    │                    │
-     │                   │                     ├─ POST /token ────►│                    │
-     │                   │                     │  grant_type=token-exchange             │
-     │                   │                     │  subject_token=<JWT utilisateur>       │
-     │                   │                     ◄─ access_token échangé ─┤                │
-     │                   │                     │                    │                    │
-     │                   │                     ├─ Bearer <JWT échangé> ─────────────────►│
-     │                   │                     ◄─ réponse selon rôles ──────────────────┤
-     │                   ◄─ fragment HTML ────┤                    │                    │
-     ◄─ interface mise à jour ┤                │                    │                    │
+ Navigateur : Vue.js                client-service           Keycloak          resource-server
+        │                                 │                    │                    │
+        ├─ fetch /client/call-as-user ────►│                    │                    │
+        │  Bearer <access token utilisateur>│                   │                    │
+        │                                 ├─ valide le JWT     │                    │
+        │                                 ├─ POST /token ────► │                    │
+        │                                 │  grant_type=token-exchange              │
+        │                                 │  subject_token=<JWT utilisateur>        │
+        │                                 ◄─ access_token échangé ─┤                │
+        │                                 │                    │                    │
+        │                                 ├─ Bearer <JWT échangé> ─────────────────►│
+        │                                 ◄─ réponse selon rôles ───────────────────┤
+        ◄─ réponse JSON ──────────────────┤                    │                    │
 ```
 
 Le jeton entrant sert de preuve de la délégation ; seul le nouveau jeton, contrôlé pour cette relation de confiance, atteint `resource-server`.
@@ -539,14 +625,14 @@ Le jeton entrant sert de preuve de la délégation ; seul le nouveau jeton, cont
 
 ## Token Exchange — 1. Transmission contrôlée
 
-Depuis le fragment HTMX dédié, le `frontend-htmx-service` récupère l'*access token* de l'utilisateur connecté et l'envoie :
+Depuis l'action Vue « Token Exchange », le navigateur récupère l'*access token* en mémoire et l'envoie directement à `client-service` :
 
 ```text
 GET /client/call-as-user
 Authorization: Bearer <access token de l'utilisateur>
 ```
 
-`client-service` est aussi un **resource server** : avant tout échange, Spring valide ce Bearer (issuer, signature, expiration) et reconstruit les autorités à partir des rôles Keycloak.
+`client-service` est aussi un **resource server** : avant tout échange, Spring valide ce Bearer (issuer, signature, expiration) et reconstruit les autorités à partir des rôles Keycloak. CORS autorise l'origine de la SPA, sans remplacer cette validation.
 
 Sans Bearer valide, `/client/call-as-user` n'est pas accessible.
 
@@ -602,11 +688,13 @@ Le `resource-server` valide à nouveau ce **nouveau** JWT et applique ses règle
 
 1. Démarrer Keycloak et les quatre services.
 2. Appeler `http://localhost:8082/client/call` : flux machine-à-machine.
-3. Ouvrir `http://localhost:8083` (HTMX) ou `http://localhost:8084` (Vue.js) et se connecter avec :
+3. Ouvrir `http://localhost:8084` (SPA Vue.js) et se connecter avec :
    - `alice` / `alice` : rôles `USER`, `ADMIN` ;
    - `bob` / `bob` : rôle `USER`.
 4. Comparer les accès aux zones utilisateur et administrateur.
-5. Depuis le frontend, déclencher le fragment « Token Exchange ».
+5. Depuis Vue, déclencher l'action « Token Exchange » et observer la réponse JSON.
+
+L'alternative BFF est disponible sur `http://localhost:8083` avec `frontend-htmx-service`.
 
 ---
 
@@ -624,8 +712,8 @@ class: compact
 ## API gateway — point d'entrée, pas fournisseur d'identité
 
 ```text
-Navigateur / client ──► API gateway ──┬──► frontend-htmx-service :8083
-                                      ├──► frontend-vue-service  :8084
+Navigateur / client ──► API gateway ──┬──► frontend-vue-service  :8084
+                                      ├──► frontend-htmx-service :8083
                                       ├──► client-service        :8082
                                       └──► resource-server       :8081
           gateway ── découverte OIDC / JWKS ──► Keycloak :8080

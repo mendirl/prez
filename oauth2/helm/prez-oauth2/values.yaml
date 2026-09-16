@@ -10,6 +10,7 @@ image:
 keycloak:
   host: "172.17.0.1" # IP de l'hôte (passerelle docker par défaut sur Linux)
   port: 8080
+  publicUrl: "http://localhost:8080"
 
 resourceServer:
   replicaCount: 1

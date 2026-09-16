@@ -10,7 +10,7 @@
         header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
         .hero, .card { background: #f5f7fa; padding: 1rem 1.5rem; border-radius: 8px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
-        .card { min-height: 120px; }
+        .card { min-height: 120px; margin-top: .75rem; box-sizing: border-box; }
         .card.admin { background: #fef3c7; border: 1px solid #f59e0b; }
         .card.user { background: #dcfce7; border: 1px solid #22c55e; }
         button, a.btn { display: inline-block; background: #2563eb; color: white; border: none; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; }
@@ -26,13 +26,18 @@
 </head>
 <body>
 <div id="app">
-    <section v-if="loading" class="hero">Chargement de la session…</section>
+    <section v-if="loading" class="hero">Initialisation de la SPA…</section>
+
+    <section v-else-if="error" class="hero">
+        <h1>Démo OAuth2 / OIDC — Vue.js</h1>
+        <p class="error">{{ error }}</p>
+    </section>
 
     <section v-else-if="!session" class="hero">
         <h1>Démo OAuth2 / OIDC — Vue.js</h1>
-        <p>Frontend Spring Boot + Vue.js, sécurisé via Keycloak.</p>
-        <p>Connectez-vous pour démarrer le flow <code>authorization_code</code> avec PKCE.</p>
-        <a class="btn" :href="contextPath + '/oauth2/authorization/keycloak'">Se connecter avec Keycloak</a>
+        <p>SPA Vue.js sécurisée directement par Keycloak.</p>
+        <p>Connectez-vous pour démarrer le flow <code>authorization_code</code> avec PKCE dans le navigateur.</p>
+        <button @click="login">Se connecter avec Keycloak</button>
     </section>
 
     <template v-else>
@@ -57,15 +62,15 @@
         <div class="grid">
             <section v-if="hasRole('USER')">
                 <h3>👤 Espace utilisateur</h3>
-                <button class="user" @click="request('user', '/api/user')">Appeler /api/user/profile</button>
+                <button class="user" @click="request('user', '/api/user/profile')">Appeler /api/user/profile</button>
                 <api-result class="card user" :result="results.user" placeholder="Disponible aux rôles USER et ADMIN."></api-result>
             </section>
 
             <section v-if="hasRole('ADMIN')">
                 <h3>🛡️ Espace administrateur</h3>
-                <button class="admin" @click="request('admin', '/api/admin')">Appeler /api/admin/dashboard</button>
+                <button class="admin" @click="request('admin', '/api/admin/dashboard')">Appeler /api/admin/dashboard</button>
                 <api-result class="card admin" :result="results.admin" placeholder="Réservé au rôle ADMIN."></api-result>
-                <p><a :href="contextPath + '/admin'">→ Page d'administration dédiée</a></p>
+                <p><em>Les règles d’accès sont vérifiées à nouveau par resource-server.</em></p>
             </section>
             <section v-else>
                 <h3>🛡️ Espace administrateur</h3>
@@ -85,7 +90,7 @@
                 <button @click="loadAccessToken">Afficher l'access token</button>
                 <div class="card" v-if="accessToken">
                     <p><strong>Expire à :</strong> {{ accessToken.expiresAt }}</p>
-                    <p><strong>Scopes :</strong> {{ Array.from(accessToken.scopes).join(', ') }}</p>
+                    <p><strong>Scopes :</strong> {{ accessToken.scopes.join(', ') }}</p>
                     <details><summary>Voir le JWT brut</summary><pre>{{ accessToken.value }}</pre></details>
                 </div>
                 <div class="card" v-else><em>Cliquez pour récupérer le token via Vue.js.</em></div>
@@ -99,25 +104,29 @@
 
             <section>
                 <h3>🔁 Token Exchange (via clientm)</h3>
-                <button @click="request('clientm', '/api/clientm')">Appeler client-service /client/call-as-user</button>
+                <button @click="request('clientm', '/client/call-as-user', 'clientServiceUrl')">Appeler client-service /client/call-as-user</button>
                 <api-result class="card" :result="results.clientm" placeholder="Le frontend transmet votre token à client-service, qui l'échange auprès de Keycloak."></api-result>
             </section>
         </div>
     </template>
 </div>
 
-<script>
+<script type="module">
+    import Keycloak from './webjars/keycloak-js/26.1.0/lib/keycloak.js';
+
     const { createApp } = Vue;
 
     const apiResult = {
         props: ['result', 'placeholder'],
         template: `
-            <template v-if="result">
-                <p><small><code>{{ result.endpoint }}</code></small></p>
-                <p v-if="result.error" class="error"><strong>Erreur :</strong> {{ result.error }}</p>
-                <pre v-else>{{ JSON.stringify(result.response, null, 2) }}</pre>
-            </template>
-            <em v-else>{{ placeholder }}</em>`
+            <div class="card">
+                <template v-if="result">
+                    <p><small><code>{{ result.endpoint }}</code></small></p>
+                    <p v-if="result.error" class="error"><strong>Erreur :</strong> {{ result.error }}</p>
+                    <pre v-else>{{ JSON.stringify(result.response, null, 2) }}</pre>
+                </template>
+                <em v-else>{{ placeholder }}</em>
+            </div>`
     };
 
     createApp({
@@ -125,44 +134,85 @@
         data() {
             return {
                 loading: true,
+                error: null,
                 session: null,
-                csrf: null,
                 accessToken: null,
                 results: {},
-                contextPath: window.location.pathname === '/vue' || window.location.pathname.startsWith('/vue/') ? '/vue' : ''
+                contextPath: window.location.pathname === '/vue' || window.location.pathname.startsWith('/vue/') ? '/vue' : '',
+                configuration: null,
+                keycloak: null
             };
         },
         async mounted() {
-            const headers = { Accept: 'application/json' };
-            const [sessionResponse, csrfResponse] = await Promise.all([
-                fetch(this.contextPath + '/api/session', { credentials: 'same-origin', headers }),
-                fetch(this.contextPath + '/api/csrf', { credentials: 'same-origin', headers })
-            ]);
-            if (sessionResponse.ok) this.session = await sessionResponse.json();
-            if (csrfResponse.ok) this.csrf = await csrfResponse.json();
-            this.loading = false;
+            try {
+                const response = await fetch(this.contextPath + '/spa-config.json');
+                if (!response.ok) throw new Error('Configuration de la SPA indisponible.');
+                this.configuration = await response.json();
+                this.keycloak = new Keycloak({
+                    url: this.configuration.keycloakUrl,
+                    realm: 'demo',
+                    clientId: 'frontend-vue-service'
+                });
+                const authenticated = await this.keycloak.init({
+                    onLoad: 'check-sso',
+                    pkceMethod: 'S256',
+                    checkLoginIframe: false
+                });
+                if (authenticated) this.updateSession();
+            } catch (error) {
+                this.error = error.message;
+            } finally {
+                this.loading = false;
+            }
         },
         methods: {
-            hasRole(role) { return this.session.authorities.includes('ROLE_' + role); },
-            async request(name, url) {
-                const response = await fetch(this.contextPath + url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-                this.results[name] = await response.json();
+            updateSession() {
+                const claims = this.keycloak.tokenParsed || {};
+                const roles = (claims.realm_access && claims.realm_access.roles) || [];
+                this.session = {
+                    name: claims.preferred_username || claims.sub,
+                    claims,
+                    authorities: roles.map(role => 'ROLE_' + role),
+                    idToken: this.keycloak.idToken
+                };
+            },
+            hasRole(role) { return this.session && this.session.authorities.includes('ROLE_' + role); },
+            async currentAccessToken() {
+                await this.keycloak.updateToken(30);
+                this.updateSession();
+                return this.keycloak.token;
+            },
+            apiUrl(service, path) {
+                return this.configuration[service] + path;
+            },
+            async request(name, path, service = 'resourceServerUrl') {
+                const response = await fetch(this.apiUrl(service, path), {
+                    headers: { Authorization: 'Bearer ' + await this.currentAccessToken(), Accept: 'application/json' }
+                });
+                let body = null;
+                try {
+                    body = await response.json();
+                } catch (error) {
+                    // Le serveur peut retourner une réponse 401 sans corps.
+                }
+                this.results[name] = response.ok
+                    ? { endpoint: path, response: body }
+                    : { endpoint: path, error: body && body.error ? body.error : 'HTTP ' + response.status };
             },
             async loadAccessToken() {
-                const response = await fetch(this.contextPath + '/api/access-token', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-                if (response.ok) this.accessToken = await response.json();
+                const value = await this.currentAccessToken();
+                const claims = this.keycloak.tokenParsed || {};
+                this.accessToken = {
+                    value,
+                    expiresAt: claims.exp ? new Date(claims.exp * 1000).toISOString() : 'inconnue',
+                    scopes: (claims.scope || '').split(' ').filter(Boolean)
+                };
+            },
+            login() {
+                this.keycloak.login({ redirectUri: window.location.href.split(/[?#]/)[0] });
             },
             logout() {
-                const form = document.createElement('form');
-                form.method = 'post';
-                form.action = this.contextPath + '/logout';
-                const token = document.createElement('input');
-                token.type = 'hidden';
-                token.name = this.csrf.parameterName;
-                token.value = this.csrf.token;
-                form.appendChild(token);
-                document.body.appendChild(form);
-                form.submit();
+                this.keycloak.logout({ redirectUri: window.location.origin + this.contextPath + '/' });
             }
         }
     }).mount('#app');
